@@ -29,6 +29,7 @@ def main() -> int:
         make_missing_metadata_case(shoots / "missing-metadata"),
         make_duplicate_case(shoots / "exact-duplicates"),
         make_unsupported_only_case(shoots / "unsupported-only"),
+        make_raw_metadata_case(shoots / "raw-metadata"),
         make_corrupt_case(shoots / "corrupt-mixed"),
         make_nested_case(shoots / "nested-uppercase"),
     ]
@@ -101,6 +102,16 @@ def expectation_failures(case_name: str, data: dict) -> list[str]:
     elif case_name == "unsupported-only":
         if score != 0 or supported != 0 or unsupported == 0:
             failures.append("expected unsupported-only folder to score 0 with no recognized images")
+    elif case_name == "raw-metadata":
+        photos = data["analysis"]["photos"]
+        if supported != 1 or unsupported != 0:
+            failures.append("expected RAW metadata case to recognize one RAW file and skip its sidecar")
+        elif photos[0].get("focal_length_mm") != 75:
+            failures.append("expected RAW metadata case to read 75mm from XMP sidecar")
+        elif photos[0].get("focal_length_source") != "xmp_sidecar":
+            failures.append("expected RAW focal length source to be xmp_sidecar")
+        elif "raw_image_not_decoded" not in photos[0].get("warnings", []):
+            failures.append("expected RAW metadata case to warn that RAW image pixels were not decoded")
     elif case_name == "exact-duplicates":
         if not duplicate_groups:
             failures.append("expected an exact duplicate group")
@@ -146,7 +157,26 @@ def make_duplicate_case(folder: Path) -> Path:
 def make_unsupported_only_case(folder: Path) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "notes.txt").write_text("Notes only.\n", encoding="utf-8")
-    (folder / "sony_raw.ARW").write_bytes(b"not parsed in v0.1")
+    return folder
+
+
+def make_raw_metadata_case(folder: Path) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "field_frame.ARW").write_bytes(b"metadata-only raw placeholder")
+    (folder / "field_frame.xmp").write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description
+      xmlns:exif="http://ns.adobe.com/exif/1.0/"
+      exif:FocalLength="75/1"
+      exif:PixelXDimension="6000"
+      exif:PixelYDimension="4000" />
+  </rdf:RDF>
+</x:xmpmeta>
+""",
+        encoding="utf-8",
+    )
     return folder
 
 

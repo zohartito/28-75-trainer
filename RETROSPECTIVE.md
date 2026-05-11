@@ -310,3 +310,30 @@
 
 - Keep prompt, JSON plan, CSV plan, and Lua plan as separate artifacts so each can be tested independently.
 - Treat Lightroom automation as an integration layer after the trainer report is trustworthy.
+
+## 2026-05-11 Recommendation Bug And Adobe MCP Boundary
+
+### What worked
+
+- The live SD-card test caught a real product bug quickly: a 30-photo run and 56-photo run produced the same recommended 12, which made the order bias obvious.
+- The fixed spread-selection test gave us a concrete regression guard instead of a vague "pick better photos" instruction.
+- The contact-sheet review changed the product posture in the right way: EXIF and tone are useful hints, but visual coverage and subject variety must be explicit before Lightroom gets involved.
+- The Adobe MCP boundary is now clearer: 28-75 Trainer can plan, but Adobe MCP owns catalog resolution, dry-run validation, execution, proofs, and ledger.
+
+### What didn't
+
+- The Mac prototype got ahead of the source repo, so product truth was split across local generated artifacts and GitHub source.
+- The first recommendation logic was too order-driven and looked professional until a larger folder exposed the weakness.
+- The Lightroom prompt was almost handed off too early, before the trainer recommendation set was re-evaluated.
+
+### Why
+
+- v0.1 optimized for shipping the loop, then real field behavior immediately exposed the next class of product risks.
+- "Technically valid" is not the same as "good coverage of the actual subject."
+- Training software needs a stricter boundary than editing software: it must say what it knows, what it inferred, and what still needs visual or execution proof.
+
+### What we'd do differently
+
+- Treat every generated recommended set as suspect until it passes a stale-list check against previous runs and a visual/contact-sheet sanity check.
+- Promote Mac prototype fixes into source-controlled modules before telling another agent or Adobe layer to act on them.
+- Keep all Lightroom and Adobe statuses as `planned` until an execution ledger proves otherwise.

@@ -6,7 +6,24 @@ from typing import Any
 
 
 REPORT_SCHEMA_VERSION = "1.0"
-SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}
+SUPPORTED_IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".tif",
+    ".tiff",
+    ".arw",
+    ".cr2",
+    ".cr3",
+    ".dng",
+    ".nef",
+    ".orf",
+    ".raf",
+    ".rw2",
+    ".pef",
+    ".srw",
+}
 
 
 @dataclass(frozen=True)
@@ -40,7 +57,9 @@ class PhotoAnalysis:
     sha256: str
     width: int | None = None
     height: int | None = None
+    dimensions_source: str = "unavailable"
     focal_length_mm: int | None = None
+    focal_length_source: str = "unavailable"
     aperture: str | None = None
     iso: int | None = None
     warnings: tuple[str, ...] = field(default_factory=tuple)
@@ -73,9 +92,11 @@ class PhotoAnalysis:
             "sha256": self.sha256,
             "width": self.width,
             "height": self.height,
+            "dimensions_source": self.dimensions_source,
             "orientation": self.orientation,
             "megapixels": self.megapixels,
             "focal_length_mm": self.focal_length_mm,
+            "focal_length_source": self.focal_length_source,
             "aperture": self.aperture,
             "iso": self.iso,
             "warnings": list(self.warnings),

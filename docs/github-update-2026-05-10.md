@@ -82,3 +82,28 @@ The research update clarifies that 28-75 Trainer should not become a generic AI 
 2. Push future updates from a clean product export or a dedicated local repo, not from `Playground`.
 3. Use GitHub issues #1-#5 as the next execution queue.
 4. Open a draft PR only after there is a stable feature-branch workflow.
+
+## 2026-05-11 Update Queue
+
+The next GitHub update should include the recommendation-bug fix and the newest roadmap execution work. The stale recommended set to document and ignore is:
+
+`[1, 7, 11, 13, 14, 15, 17, 18, 19, 20, 21, 25]`
+
+The fixed automated SD-card recommendation was:
+
+`[7, 11, 15, 16, 18, 19, 21, 27, 30, 36, 39, 54]`
+
+The visual-coach Adobe MCP handoff recommendation was:
+
+`[7, 15, 16, 21, 23, 27, 30, 31, 36, 39, 43, 54]`
+
+GitHub issue updates to make:
+
+| Issue | Update |
+|---|---|
+| #1 Field-Test Intelligence | Note that stale-order recommendation was reproduced and source-level spread selection tests were added |
+| #2 RAW Metadata Intake | Elevate because real SD-card workflow produced RAW/JPEG pairs |
+| #3 Contact Sheet v1 | Elevate because visual sanity is now a recommendation gate, not a nice-to-have |
+| #4 Pre-v0.2 Hardening | Include Adobe MCP status boundary and atomic/report validation work |
+| New issue | Adobe MCP dry-run bridge: validate planned develop keys, catalog resolution, proof exports, and ledger before claiming completion |
+| New issue | Packaged Mac field-review CLI: bring SD-card prototype behavior into a repeatable source-controlled command |

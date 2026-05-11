@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .analysis import analyze_folder
 from .coaching import build_coaching_report
+from .field_review_cli import run_field_review
 from .mission import DEFAULT_MISSION, mission_for_focus, mission_to_json, mission_to_markdown
 from .reporting import (
     load_report_json,
@@ -41,6 +42,17 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("json_report", help="JSON report produced by the review command.")
     report_parser.add_argument("--out", default="reports/review.html", help="HTML report path.")
 
+    field_review_parser = subparsers.add_parser(
+        "field-review",
+        help="Summarize a field-review JSON and optionally write a planned Adobe MCP handoff.",
+    )
+    field_review_parser.add_argument("review_json", help="Field-review JSON containing an items list.")
+    field_review_parser.add_argument("--slug", help="Stable shoot slug for handoff photo IDs.")
+    field_review_parser.add_argument(
+        "--adobe-mcp-out",
+        help="Write a planned-only Adobe MCP handoff JSON to this path.",
+    )
+
     return parser
 
 
@@ -54,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
             return run_review(args)
         if args.command == "report":
             return run_report(args)
+        if args.command == "field-review":
+            return run_field_review(args)
     except (FileNotFoundError, NotADirectoryError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

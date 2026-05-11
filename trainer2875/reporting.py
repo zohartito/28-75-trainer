@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import html
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -249,7 +251,25 @@ def duplicate_items(groups: list[list[str]]) -> str:
 def write_text_output(path: str | Path, content: str) -> None:
     output_path = validate_text_output_path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(content, encoding="utf-8")
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=output_path.parent,
+            prefix=f".{output_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temp_path.replace(output_path)
+    except Exception:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+        raise
 
 
 def validate_text_output_path(path: str | Path) -> Path:
@@ -307,14 +327,81 @@ def validate_report_data(data: Any) -> None:
     if data["schema_version"] != REPORT_SCHEMA_VERSION:
         raise ValueError(f"Unsupported report schema version: {data['schema_version']}")
 
-    mission_required = ("title", "objective")
-    for key in mission_required:
-        if key not in data["mission"]:
-            raise ValueError(f"Report JSON mission is missing required field: {key}")
-    if "photos" not in data["analysis"] or not isinstance(data["analysis"]["photos"], list):
+    validate_mission_data(data["mission"], "mission")
+    validate_analysis_data(data["analysis"])
+    validate_scorecard_data(data["scorecard"])
+    validate_mission_data(data["next_mission"], "next_mission")
+
+
+def validate_mission_data(mission: dict[str, Any], label: str) -> None:
+    mission_required = {"title": str, "objective": str}
+    full_mission_required = {
+        "mission_id": str,
+        "title": str,
+        "objective": str,
+        "minimum_shots": int,
+        "target_focal_lengths": list,
+        "constraints": list,
+        "scoring_weights": dict,
+    }
+    full_mission_keys = set(full_mission_required) - set(mission_required)
+    expected = full_mission_required if has_any_key(mission, full_mission_keys) else mission_required
+    for key, expected_type in expected.items():
+        if key not in mission:
+            raise ValueError(f"Report JSON {label} is missing required field: {key}")
+        if not isinstance(mission[key], expected_type):
+            raise ValueError(f"Report JSON {label} field `{key}` has the wrong type.")
+
+
+def validate_analysis_data(analysis: dict[str, Any]) -> None:
+    if "photos" not in analysis or not isinstance(analysis["photos"], list):
         raise ValueError("Report JSON analysis must include a photos list.")
-    if "unsupported_files" not in data["analysis"] or not isinstance(data["analysis"]["unsupported_files"], list):
+    if "unsupported_files" not in analysis or not isinstance(analysis["unsupported_files"], list):
         raise ValueError("Report JSON analysis must include an unsupported_files list.")
+
+    photos = analysis["photos"]
+    full_photo_keys = {
+        "extension",
+        "bytes_size",
+        "sha256",
+    }
+    generated_photo_required = (
+        "relative_path",
+        "extension",
+        "bytes_size",
+        "sha256",
+        "width",
+        "height",
+        "orientation",
+        "megapixels",
+        "focal_length_mm",
+        "aperture",
+        "iso",
+        "warnings",
+    )
+    full_analysis = "root_name" in analysis or any(
+        isinstance(photo, dict) and has_any_key(photo, full_photo_keys) for photo in photos
+    )
+    if full_analysis:
+        if "root_name" not in analysis:
+            raise ValueError("Report JSON analysis is missing required field: root_name")
+        if not isinstance(analysis["root_name"], str):
+            raise ValueError("Report JSON analysis field `root_name` has the wrong type.")
+
+    for index, photo in enumerate(photos):
+        if not isinstance(photo, dict):
+            raise ValueError(f"Report JSON analysis photo {index} must be an object.")
+        if has_any_key(photo, full_photo_keys):
+            for key in generated_photo_required:
+                if key not in photo:
+                    raise ValueError(f"Report JSON analysis photo {index} is missing required field: {key}")
+        if "relative_path" not in photo:
+            raise ValueError(f"Report JSON analysis photo {index} is missing required field: relative_path")
+        if not isinstance(photo["relative_path"], str):
+            raise ValueError(f"Report JSON analysis photo {index} field `relative_path` has the wrong type.")
+
+
+def validate_scorecard_data(scorecard: dict[str, Any]) -> None:
     scorecard_required = {
         "total_score": (int, float, str),
         "component_scores": dict,
@@ -322,13 +409,23 @@ def validate_report_data(data: Any) -> None:
         "duplicate_groups": list,
     }
     for key, expected_type in scorecard_required.items():
-        if key not in data["scorecard"]:
+        if key not in scorecard:
             raise ValueError(f"Report JSON scorecard is missing required field: {key}")
-        if not isinstance(data["scorecard"][key], expected_type):
+        if not isinstance(scorecard[key], expected_type):
             raise ValueError(f"Report JSON scorecard field `{key}` has the wrong type.")
-    for key in mission_required:
-        if key not in data["next_mission"]:
-            raise ValueError(f"Report JSON next_mission is missing required field: {key}")
+
+    if "missing_focal_lengths" in scorecard or set(COMPONENT_LABELS).issubset(scorecard["component_scores"]):
+        if "missing_focal_lengths" not in scorecard:
+            raise ValueError("Report JSON scorecard is missing required field: missing_focal_lengths")
+        if not isinstance(scorecard["missing_focal_lengths"], list):
+            raise ValueError("Report JSON scorecard field `missing_focal_lengths` has the wrong type.")
+        for component in COMPONENT_LABELS:
+            if component not in scorecard["component_scores"]:
+                raise ValueError(f"Report JSON scorecard component_scores is missing required field: {component}")
+
+
+def has_any_key(data: dict[str, Any], keys: dict[str, Any] | set[str]) -> bool:
+    return any(key in data for key in keys)
 
 
 def escape(value: str) -> str:

@@ -24,7 +24,7 @@ The latest competitive research reframes the roadmap around one product lesson: 
 - Hardening checks that validate review outputs before scans, refuse report source/output overwrite, reject symlink output targets, and skip symlinked image inputs.
 - Report schema validation and evidence-scope labels so loaded JSON cannot silently become a misleading coach report.
 - Sample-shoot generator for repeatable local verification.
-- Simulator runner for balanced, missing-metadata, exact-duplicate, unsupported-only, corrupt-image, and nested-uppercase folder cases.
+- Simulator runner for balanced, missing-metadata, exact-duplicate, unsupported-only, RAW-metadata, corrupt-image, and nested-uppercase folder cases.
 - Tests for the core mission/review/report pipeline, output safety, schema validation, conservative coaching language, HTML escaping, and CLI failure behavior.
 - Product docs:
   - `README.md`

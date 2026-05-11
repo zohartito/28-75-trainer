@@ -53,26 +53,45 @@ Status: built in the 2026-05-09 roadmap/audit pass.
 | Symlink input safety | Symlinked image files are skipped rather than read through outside the reviewed folder | Built |
 | Report truth | Loaded JSON reports require a schema shape, report labels identify evidence sources, and HTML states v0.1 limitations | Built |
 | Corrupt/empty-folder scoring | Unreadable image headers do not earn focal coverage; unsupported-only folders score 0 with no-evidence language | Built |
-| Simulator coverage | A local simulator runs balanced, missing-metadata, exact-duplicate, unsupported-only, corrupt, and nested-uppercase cases | Built |
+| Simulator coverage | A local simulator runs balanced, missing-metadata, exact-duplicate, unsupported-only, RAW-metadata, corrupt, and nested-uppercase cases | Built |
 | Regression coverage | Tests cover safety, schema validation, conservative wording, and simulator-adjacent scoring behavior | Built |
 
 ## v0.1.2 Gate - Field-Test Intelligence
 
-Status: partly built; roadmap updated from the first real architectural-model field test.
+Status: mostly built in source after the 2026-05-11 seven-item execution pass. The remaining v0.1.2 gap is tying visual contact-sheet evidence directly into the packaged CLI output rather than using helper modules separately.
 
 | Gate | Acceptance Criteria | Status |
 |---|---|---|
 | JPEG focal detection | JPEG EXIF focal length is read before filename fallback | Built |
 | Field-test guide | Beginner architectural-model sunlight workflow exists with Mac, Adobe Bridge, and trainer paths | Built |
 | Lightroom fix-pass guide | Manual Lightroom Classic post-report workflow exists | Built |
-| Extra-photo handling | More than 12 photos are treated as alternates/candidates, not failures | Planned |
-| Role grouping | Report groups likely wide/context, massing, facade/elevation, detail/context, tight detail, and compression candidates | Planned |
-| Recommended picks | Report recommends a balanced 12-photo set from larger shoots | Planned |
-| Lightroom fix sheet | Report gives per-photo Lightroom Classic starting steps | Planned |
+| Extra-photo handling | More than 12 photos are treated as alternates/candidates, not failures | Built in `field-review` |
+| Role grouping | Report groups likely wide/context, massing, facade/elevation, detail/context, tight detail, and compression candidates | Built as role/hand-off logic |
+| Recommended picks | Report recommends a balanced 12-photo set from larger shoots | Fixed after stale-order bug; source tests added |
+| Lightroom fix sheet | Report gives per-photo Lightroom Classic starting steps | Built as planned-only Markdown/CSV exporter |
 | AI agent handoff prompt | Lightroom/Codex agent prompt exists for turning trainer JSON into beginner Lightroom steps | Built |
-| RAW metadata intake | RAW files expose focal length and basic metadata without mutating originals | Planned |
+| Adobe MCP handoff contract | Trainer emits planned-only photo IDs, roles, warnings, edit intent, and supported develop-key settings for Adobe MCP | Built |
+| Adobe MCP dry-run bridge | Handoff is validated before any Lightroom execution claim | Built |
+| Contact sheet sanity | Contact-sheet HTML and selection sanity flags expose narrow/duplicate selections | Built as helper module |
+| RAW metadata intake | RAW files expose metadata-only focal/dimension source labels without mutating originals | Built with honest RAW placeholder warnings |
 
-Exit test: a 30-photo architectural-model folder produces mission coverage, alternates, recommended 12 picks, missing-vertical warnings, and Lightroom fix notes while preserving originals.
+Exit test: a 56-photo SD-card shoot copied from `/Volumes/Z/DCIM/100MSDCF` produces 56 reviewed RAW frames, 12 balanced recommended picks, a non-stale recommendation set, late detail/compression picks, and a planned-only Adobe MCP handoff while preserving originals.
+
+### 2026-05-11 Field-Test Finding
+
+The 30-photo run and first 56-photo SD-card run produced the same recommended set:
+
+`[1, 7, 11, 13, 14, 15, 17, 18, 19, 20, 21, 25]`
+
+That exposed an order bias: the prototype was effectively sorting usable frames by status and shot number, then taking the first three per role. The fix is now represented in source as spread selection with tone/contrast/clipping hints. The verified fixed SD-card run produced:
+
+`[7, 11, 15, 16, 18, 19, 21, 27, 30, 36, 39, 54]`
+
+A stricter visual-coach Adobe MCP handoff then selected:
+
+`[7, 15, 16, 21, 23, 27, 30, 31, 36, 39, 43, 54]`
+
+The roadmap implication is clear: v0.2 needs visual/contact-sheet review, similarity grouping, and correction capture before the trainer should pretend its automated picks are final photographic judgment.
 
 ## v0.2 Gate - Evidence Engine
 
@@ -85,7 +104,9 @@ Goal: make the report more truthful and more useful without overclaiming.
 | Format honesty | Clearly distinguish counted formats from formats with full metadata support |
 | Image signals schema | Extend the current top-level report schema into field-level source labels for dimensions, orientation, focal length, aperture, shutter, ISO, capture time, hash, and warnings |
 | Contact sheet v1 | Generate local thumbnail sheets with filename, focal length, warnings, and score flags |
+| Visual selection sanity | Recommendation logic must use contact-sheet evidence or user overrides to avoid technically valid duplicates |
 | Decision buckets | Add source-labeled `select`, `maybe`, `reject`, and `practice-evidence` buckets without implying artistic truth |
+| Adobe MCP dry-run bridge | Validate planned develop keys and catalog resolution before any Lightroom execution claim |
 | Correction learning | Record user corrections/overrides as local training evidence without mutating originals |
 | Trust metrics | Track false reject risk, override count, time to first useful insight, and next-mission specificity in test fixtures or review metadata |
 | Report contracts | Add tests for contact-sheet rendering, metadata-source labels, unsupported files, and loaded-report rendering with new schema fields |
@@ -174,15 +195,13 @@ Exit test: a user can complete a structured curriculum and see measurable improv
 
 | Priority | Milestone | Why Now |
 |---|---|---|
-| 1 | Real EXIF/JPEG metadata fixture path | Current filename-tag fallback is useful but not enough for real camera folders |
-| 2 | Extra-photo role grouping | The real field test produced 30 frames, so the trainer must pick a balanced set from alternates |
-| 3 | Lightroom Classic fix sheet | The next useful output is generated edit guidance after the trainer report; the AI-agent prompt is now the manual bridge |
-| 4 | RAW metadata intake | The real field test produced RAW frames, so JPEG-only EXIF is not enough |
-| 5 | Pre-v0.2 hardening | Audit found shallow nested JSON validation, non-atomic paired writes, and metadata scoring honesty gaps |
-| 6 | Contact sheet v1 | Research confirms serious review tools win trust through fast visual evidence, not text-only tables |
-| 7 | Decision buckets with source labels | Lightroom, Narrative, Imagen, and Aftershoot all train users to expect visible select/maybe/reject logic and overrideable reasons |
-| 8 | Versioned analysis schema | Blur, similarity, history, and handoff features need a stable data spine |
-| 9 | Session history and three-shot mission proof | The product becomes a coach only when it remembers prior misses and requires repeatable practice evidence |
+| 1 | Decision buckets with source labels | Lightroom, Narrative, Imagen, and Aftershoot all train users to expect visible select/maybe/reject logic and overrideable reasons |
+| 2 | Similarity grouping | The stale-pick bug showed near-duplicate subject clusters must compete before final picks |
+| 3 | Versioned analysis schema | Blur, similarity, history, and handoff features need a stable data spine |
+| 4 | Contact-sheet thumbnails | Current contact sheet is deterministic HTML metadata; v0.2 needs actual local thumbnails |
+| 5 | Adobe MCP ledger integration | Dry-run validation exists; next step is proof export and ledger contract with the execution layer |
+| 6 | Session history and three-shot mission proof | The product becomes a coach only when it remembers prior misses and requires repeatable practice evidence |
+| 7 | Keeper-recall benchmark | Recommendations need user-marked must-keep frames to measure false reject risk |
 
 ## Research Inputs
 
@@ -190,16 +209,16 @@ The current competitive-learning research brief is in `docs/research/competitive
 
 ## Current Position
 
-As of the 2026-05-10 GitHub/roadmap update, the project is on branch `codex/28-75-trainer-v0-1`.
+As of the 2026-05-11 GitHub/roadmap update, the project is on branch `codex/28-75-trainer-v0-1`.
 
 | Track | Status | Evidence |
 |---|---|---|
 | v0.1 local training loop | Built | Mission, review, coaching report, JSON, and next mission are implemented and tested |
 | v0.1.1 trust hardening | Built | Output preflight, symlink safety, report schema checks, corrupt/empty-folder scoring, and simulator cases are implemented |
-| v0.1.2 field-test intelligence | Partly built | Field-test docs, JPEG EXIF focal length, and Lightroom fix-pass docs exist; extra-photo grouping/picks need to be ported into this repo |
+| v0.1.2 field-test intelligence | Mostly built | `field-review`, spread recommendation logic, planned-only Adobe MCP handoff, dry-run validation, contact-sheet sanity, RAW metadata placeholders, and Lightroom fix-sheet export are implemented |
 | Competitive research | Documented | `docs/research/competitive-learning-research-2026-05-10.md` converts market research into testable experiments |
-| v0.2 evidence engine | Not started | Roadmap gates are defined, but RAW/source labels/contact sheets/decision buckets are not implemented yet |
-| GitHub publication | Blocked on repo target | `gh` is authenticated, but no Git remote is configured and the parent Git root contains unrelated workspace files |
+| v0.2 evidence engine | Started | RAW/source labels, contact-sheet sanity, and hardening landed; decision buckets, similarity, thumbnail sheets, and history remain |
+| GitHub publication | Active private repo | `zohartito/28-75-trainer` is private; publish from clean product exports, not the broad parent workspace |
 
 The current program checkpoint is documented in `docs/program-checkpoint-2026-05-10.md`.
 

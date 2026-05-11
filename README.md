@@ -65,7 +65,7 @@ python -m trainer2875 report reports/sample.json --out reports/sample-copy.html
 python scripts/run_simulator.py reports/simulator
 ```
 
-The simulator creates synthetic shoot folders for balanced practice, missing metadata, exact duplicates, unsupported-only folders, corrupt images, and nested uppercase filenames. It fails if the expected safety or scoring behavior regresses.
+The simulator creates synthetic shoot folders for balanced practice, missing metadata, exact duplicates, unsupported-only folders, RAW metadata sidecars, corrupt images, and nested uppercase filenames. It fails if the expected safety or scoring behavior regresses.
 
 ## Real Field Test
 
@@ -73,11 +73,19 @@ For the first real field test, use `docs/field-tests/architectural-model-sunligh
 
 For the post-report editing pass, use `docs/workflows/lightroom-classic-fix-pass.md`. If using a Lightroom/Codex assistant, use `docs/prompts/lightroom-ai-agent-prompt.md`.
 
+The 2026-05-11 field-test update adds source-controlled selection and handoff logic for the Mac prototype findings:
+
+- `trainer2875.field_review.recommended_set(...)` picks a balanced 12-photo set across the whole shoot instead of taking the earliest valid frames.
+- `trainer2875.field_review.build_adobe_mcp_handoff(...)` creates a planned-only handoff contract for Adobe MCP/Lightroom execution.
+- `python -m trainer2875 field-review <review.json> --adobe-mcp-out <handoff.json>` turns a field-review JSON into a planned Adobe MCP handoff.
+- `trainer2875.contact_sheet` and `trainer2875.lightroom_plan` produce deterministic review/contact and planned Lightroom fix-sheet artifacts.
+- Lightroom completion remains outside this package until Adobe MCP resolves catalog entries, applies edits, exports proofs, and writes a ledger.
+
 ## Limitations
 
-- No RAW decoding yet.
+- RAW files are metadata-only in the core analyzer; RAW pixels are not decoded and reports emit `raw_image_not_decoded`.
 - No blur detection beyond structural metadata and duplicate review yet.
 - No perceptual duplicate grouping yet.
-- No contact sheet thumbnails yet.
-- No Lightroom Classic plug-in or XMP handoff yet.
+- Contact sheets are source-controlled deterministic HTML artifacts, but not image-thumbnail contact sheets yet.
+- No Lightroom Classic plug-in or XMP write path yet; Adobe MCP handoff is planned-only.
 - Coaching is deterministic rules-based, not model-backed.
