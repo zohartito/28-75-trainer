@@ -337,3 +337,30 @@
 - Treat every generated recommended set as suspect until it passes a stale-list check against previous runs and a visual/contact-sheet sanity check.
 - Promote Mac prototype fixes into source-controlled modules before telling another agent or Adobe layer to act on them.
 - Keep all Lightroom and Adobe statuses as `planned` until an execution ledger proves otherwise.
+
+## 2026-05-11 GitHub Issue Sweep
+
+### What worked
+
+- Six independent subagents moved real roadmap items in parallel: decision buckets, similarity grouping, schema versions, local contact previews, Adobe MCP ledger validation, and practice/keeper recall.
+- The final reviewer caught actual integration bugs that the unit suite initially missed: contact-sheet output could overwrite a source path, keeper recall was not wired through the CLI, ledger schema versions were not validated, and contact sheets dropped top-level decision context.
+- Regression tests now cover those misses directly.
+
+### What didn't
+
+- Several workers touched `field_review.py` and `contact_sheet.py`, so integration had real conflicts.
+- The first merged version passed many tests while still missing important product-boundary behavior.
+- Contact-sheet previews are still browser-scaled local copies, not true resized thumbnails.
+
+### Why
+
+- The roadmap items were related enough to share hot modules even though their goals were independent.
+- Existing tests focused on each worker slice, not the combined report/handoff path.
+- Staying standard-library-only avoided a dependency decision, but it limits thumbnail quality.
+
+### What we'd do differently
+
+- Add integration tests before merging subagent patches when multiple agents touch the same hot modules.
+- Treat code review findings as first-class acceptance criteria, not cleanup.
+- Keep ?no original mutation? assertions on every output-producing feature, not just the main review command.
+    
