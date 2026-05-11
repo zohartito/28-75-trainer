@@ -362,4 +362,30 @@
 
 - Add integration tests before merging subagent patches when multiple agents touch the same hot modules.
 - Treat code review findings as first-class acceptance criteria, not cleanup.
-- Keep “no original mutation” assertions on every output-producing feature, not just the main review command.
+- Keep "no original mutation" assertions on every output-producing feature, not just the main review command.
+
+## 2026-05-11 Publish And Verification Slip
+
+### What worked
+
+- The clean-export PR check caught that the draft PR branch needed to be verified independently of the parent Playground workspace.
+- The issue updates stayed private in `zohartito/28-75-trainer` and linked back to the draft PR.
+- The incorrect export branch was corrected with a follow-up commit instead of being left as a deletion-only branch.
+
+### What didn't
+
+- Piping `git archive` directly into `tar` through PowerShell corrupted the binary archive stream.
+- A final verification command was first run from the parent workspace, where `trainer2875` is not importable.
+- The first PR branch commit was deletion-only and had to be corrected before review.
+
+### Why
+
+- The product is nested under `28-75-trainer/`, while the working Git repository is the larger Playground workspace.
+- Windows PowerShell pipelines are not a safe default for binary archive streams.
+- Package-level Python tests depend on running from the product root unless the package is installed.
+
+### What we'd do differently
+
+- Use file-backed archives or filesystem export from a known product root for Windows publishing.
+- Run package verification from `28-75-trainer/` or install the package before invoking tests from another directory.
+- Inspect the PR file list before creating or updating issue closure comments.
