@@ -24,7 +24,7 @@ def score_analysis(analysis: FolderAnalysis, mission: Mission) -> ScoreCard:
     selection_score = 0 if total == 0 else round((1.0 - duplicate_penalty) * 100)
 
     dimension_known = sum(1 for photo in photos if photo.has_readable_dimensions)
-    focal_known = sum(1 for photo in photos if photo.focal_length_mm is not None)
+    focal_known = sum(1 for photo in photos if photo.has_readable_dimensions and photo.focal_length_mm is not None)
     metadata_score = round((((dimension_known + focal_known) / 2) / max(total, 1)) * 100)
 
     components = {

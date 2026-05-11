@@ -88,6 +88,13 @@ class PipelineTests(unittest.TestCase):
             self.assertIn("image_header_unreadable", analysis.photos[0].warnings)
             self.assertEqual(report.scorecard.component_scores["focal_coverage"], 0)
 
+    def test_corrupt_filename_tag_does_not_earn_metadata_completeness(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "bad_75mm.jpg").write_bytes(b"not a real jpeg")
+            report = build_coaching_report(analyze_folder(root), mission_for_focus("75mm"))
+            self.assertEqual(report.scorecard.component_scores["metadata_completeness"], 0)
+
     def test_report_output_rejects_image_like_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             for suffix in (".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"):
