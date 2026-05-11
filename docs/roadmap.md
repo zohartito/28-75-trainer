@@ -1,0 +1,235 @@
+# 28-75 Trainer Roadmap
+
+## Product Thesis
+
+28-75 Trainer should become a professional-grade deliberate-practice system for photographers who want to get genuinely better with a 28-75mm zoom. The product should not try to beat Lightroom, Photo Mechanic, Narrative Select, AfterShoot, or FastRawViewer at their strongest jobs. It should sit beside them and own a different loop:
+
+`mission -> real shoot -> local evidence -> coaching -> next mission -> measurable progress`
+
+The core promise is simple: after every practice shoot, the photographer should know what they practiced, what the files prove, what habit needs work, and what to shoot next.
+
+## Product Pillars
+
+| Pillar | Meaning | Product Standard |
+|---|---|---|
+| Local trust | Originals stay untouched and private by default | No mutation beside originals unless explicitly requested; no hidden network dependency |
+| Evidence-first coaching | Every score must trace back to observable file, metadata, or report evidence | Reports show the inputs behind each conclusion |
+| Deliberate practice | Missions are narrow, repeatable, and skill-specific | One focused correction per loop, not generic aesthetic critique |
+| Workflow fit | The tool complements existing photo workflows | Folder-first, exportable JSON/HTML, future XMP/sidecar compatibility |
+| Professional reliability | The CLI behaves predictably on real shoots | Tested failure modes, clear limitations, installable packaging, versioned data |
+
+## Competitive Wedge
+
+| Reference Class | What They Do Better | What 28-75 Trainer Should Learn | What 28-75 Trainer Can Own |
+|---|---|---|---|
+| Lightroom | Catalog, edit, AI masking, sharing, assisted culling | Respect metadata, ratings, and user workflow | Lens-specific practice history and next missions |
+| Photo Mechanic | Fast ingest, metadata, contact sheets, culling speed | Stay folder-first and keyboard-friendly | Coaching from practice evidence rather than delivery workflow |
+| AfterShoot / Narrative Select | AI culling, duplicate/expression triage, portrait review ergonomics | Make review decisions fast, visible, and reversible | Skill formation, not client delivery automation |
+| FastRawViewer | RAW-accurate exposure/focus inspection and XMP workflow | Be technically honest about image signals | Translate evidence into repeatable practice |
+| Photo challenge apps | Motivation, community prompts, habit momentum | Make missions fun and repeatable | Local post-shoot coaching with file-backed measurement |
+
+## v0.1 Gate - Local Training Loop
+
+Status: built and committed in `6ffc7ce`.
+
+| Gate | Acceptance Criteria | Status |
+|---|---|---|
+| Mission | CLI emits a usable 28-75mm practice mission in Markdown or JSON | Built |
+| Review | CLI scans a local folder read-only and handles unsupported files cleanly | Built |
+| Coaching | Review generates scored observations, recommendations, and a next mission | Built |
+| Reports | HTML and JSON outputs are generated from the same review model | Built |
+| Safety | Original image bytes are not modified by tests or sample flow | Built |
+| Validation | Unit/CLI tests cover happy paths and key failure modes | Built |
+
+## v0.1.1 Gate - Trust Hardening
+
+Status: built in the 2026-05-09 roadmap/audit pass.
+
+| Gate | Acceptance Criteria | Status |
+|---|---|---|
+| Output preflight | `review` refuses bad output paths before scanning the photo folder | Built |
+| Symlink output safety | Report outputs refuse existing symlink paths instead of writing through them | Built |
+| Report self-overwrite safety | `report <review.json> --out <same review.json>` fails without destroying the JSON | Built |
+| Symlink input safety | Symlinked image files are skipped rather than read through outside the reviewed folder | Built |
+| Report truth | Loaded JSON reports require a schema shape, report labels identify evidence sources, and HTML states v0.1 limitations | Built |
+| Corrupt/empty-folder scoring | Unreadable image headers do not earn focal coverage; unsupported-only folders score 0 with no-evidence language | Built |
+| Simulator coverage | A local simulator runs balanced, missing-metadata, exact-duplicate, unsupported-only, RAW-metadata, corrupt, and nested-uppercase cases | Built |
+| Regression coverage | Tests cover safety, schema validation, conservative wording, and simulator-adjacent scoring behavior | Built |
+
+## v0.1.2 Gate - Field-Test Intelligence
+
+Status: mostly built in source after the 2026-05-11 seven-item execution pass. The remaining v0.1.2 gap is tying visual contact-sheet evidence directly into the packaged CLI output rather than using helper modules separately.
+
+| Gate | Acceptance Criteria | Status |
+|---|---|---|
+| JPEG focal detection | JPEG EXIF focal length is read before filename fallback | Built |
+| Field-test guide | Beginner architectural-model sunlight workflow exists with Mac, Adobe Bridge, and trainer paths | Built |
+| Lightroom fix-pass guide | Manual Lightroom Classic post-report workflow exists | Built |
+| Extra-photo handling | More than 12 photos are treated as alternates/candidates, not failures | Built in `field-review` |
+| Role grouping | Report groups likely wide/context, massing, facade/elevation, detail/context, tight detail, and compression candidates | Built as role/hand-off logic |
+| Recommended picks | Report recommends a balanced 12-photo set from larger shoots | Fixed after stale-order bug; source tests added |
+| Lightroom fix sheet | Report gives per-photo Lightroom Classic starting steps | Built as planned-only Markdown/CSV exporter |
+| AI agent handoff prompt | Lightroom/Codex agent prompt exists for turning trainer JSON into beginner Lightroom steps | Built |
+| Adobe MCP handoff contract | Trainer emits planned-only photo IDs, roles, warnings, edit intent, and supported develop-key settings for Adobe MCP | Built |
+| Adobe MCP dry-run bridge | Handoff is validated before any Lightroom execution claim | Built |
+| Contact sheet sanity | Contact-sheet HTML and selection sanity flags expose narrow/duplicate selections | Built as helper module |
+| RAW metadata intake | RAW files expose metadata-only focal/dimension source labels without mutating originals | Built with honest RAW placeholder warnings |
+
+Exit test: a 56-photo SD-card shoot copied from `/Volumes/Z/DCIM/100MSDCF` produces 56 reviewed RAW frames, 12 balanced recommended picks, a non-stale recommendation set, late detail/compression picks, and a planned-only Adobe MCP handoff while preserving originals.
+
+### 2026-05-11 Field-Test Finding
+
+The 30-photo run and first 56-photo SD-card run produced the same recommended set:
+
+`[1, 7, 11, 13, 14, 15, 17, 18, 19, 20, 21, 25]`
+
+That exposed an order bias: the prototype was effectively sorting usable frames by status and shot number, then taking the first three per role. The fix is now represented in source as spread selection with tone/contrast/clipping hints. The verified fixed SD-card run produced:
+
+`[7, 11, 15, 16, 18, 19, 21, 27, 30, 36, 39, 54]`
+
+A stricter visual-coach Adobe MCP handoff then selected:
+
+`[7, 15, 16, 21, 23, 27, 30, 31, 36, 39, 43, 54]`
+
+The roadmap implication is clear: v0.2 needs visual/contact-sheet review, similarity grouping, and correction capture before the trainer should pretend its automated picks are final photographic judgment.
+
+## v0.2 Gate - Evidence Engine
+
+Goal: make the report more truthful and more useful without overclaiming.
+
+| Gate | Acceptance Criteria |
+|---|---|
+| Pre-v0.2 hardening | Nested report JSON validates cleanly, report writes are atomic, and metadata completeness does not reward unreadable files |
+| Metadata adapter | Parse EXIF from JPEGs, RAW files or sidecars, with field-level source labels |
+| Format honesty | Clearly distinguish counted formats from formats with full metadata support |
+| Image signals schema | Extend the current top-level report schema into field-level source labels for dimensions, orientation, focal length, aperture, shutter, ISO, capture time, hash, and warnings |
+| Contact sheet v1 | Generate local preview/contact sheets with filename, focal length, warnings, decision buckets, and similarity groups |
+| Visual selection sanity | Recommendation logic uses similarity groups and selection flags to avoid technically valid duplicate picks |
+| Decision buckets | Add source-labeled `select`, `maybe`, `reject`, and `practice-evidence` buckets without implying artistic truth |
+| Adobe MCP dry-run bridge | Validate planned develop keys and catalog resolution before any Lightroom execution claim |
+| Adobe MCP ledger contract | Validate `planned -> validated -> applied -> complete` proof boundaries before any completion claim |
+| Correction learning | Record user corrections/overrides as local training evidence without mutating originals |
+| Trust metrics | Track false reject risk, keeper recall, override count, time to first useful insight, and next-mission specificity in test fixtures or review metadata |
+| Report contracts | Add tests for contact-sheet rendering, metadata-source labels, unsupported files, and loaded-report rendering with new schema fields |
+| Output safety | Document overwrite behavior and keep unsafe output combinations refused before writing anything |
+
+Exit test: a real JPEG practice folder produces a report with metadata sources, a contact sheet, decision buckets with reasons, a JSON analysis schema version, and no original-file mutation.
+
+## v0.3 Gate - Focus, Similarity, And Culling Evidence
+
+Goal: move from folder metadata to practical image review signals.
+
+| Gate | Acceptance Criteria |
+|---|---|
+| Blur heuristic | Add calibrated blur/focus scores with threshold versioning and conservative language |
+| Similar sets | Add perceptual hash grouping for possible duplicates or burst candidates |
+| Exact duplicates | Keep SHA-256 exact duplicate detection as a separate, stronger signal |
+| Culling notes | Allow local keep/reject/needs-review annotations in a sidecar, never in originals |
+| Keeper recall benchmark | Run fixtures or user-marked folders that include must-keep emotional/action frames and report false-reject risk |
+| Visual evidence | Contact sheets show blur flags, similar-set IDs, and culling notes |
+
+Exit test: exact duplicates, resized near-duplicates, intentionally blurred images, sharp images, and low-texture false-positive fixtures all produce explainable output.
+
+## v0.5 Gate - Practice System
+
+Goal: become a habit-forming coach rather than a one-off report generator.
+
+| Gate | Acceptance Criteria |
+|---|---|
+| Session history | Persist local sessions with schema version and migration path |
+| Weakness model | Choose next missions from repeated misses across sessions |
+| Mission library | Add structured missions for wide context, normal perspective, compression, orientation pairing, movement, light, and selection discipline |
+| Three-shot proof | Require repeatable evidence for practice missions, not one lucky frame |
+| Reshoot comparison | Compare repeated missions across sessions and show what changed |
+| First-week activation | Ship a guided first-three-shoot path: 28mm context, 50mm normal seeing, and 75mm compression |
+| Progress report | Show trend lines for focal coverage, volume, metadata completeness, duplicate discipline, and mission completion |
+| CLI ergonomics | Add `sessions`, `history`, and `next` commands |
+
+Exit test: three reviewed shoots produce a history-backed next mission and a progress report without any cloud dependency.
+
+## v0.7 Gate - Professional Workflow Fit
+
+Goal: fit into a serious photographer's existing tools.
+
+| Gate | Acceptance Criteria |
+|---|---|
+| Import/export | Export JSON/CSV and optionally sidecar-friendly annotations |
+| Ratings bridge | Read common rating/label sidecars where available |
+| Config | Support project config for output root, ignored folders, mission defaults, and report style |
+| Performance controls | Add include/exclude filters, max-file guard, progress output, and size-first duplicate hashing |
+| Packaging smoke | Install in a clean environment and run `trainer2875 --help`, mission, review, and report |
+| Release boundary | Publish from a dedicated clean `28-75-trainer` repo or confirmed clean parent repo, never from a broad workspace root |
+
+Exit test: a large nested folder can be reviewed with filters, progress output, and no accidental traversal of generated report folders.
+
+## v1.0 Gate - Reliable Field Coach
+
+Goal: a dependable local product that a serious photographer can use repeatedly.
+
+| Gate | Acceptance Criteria |
+|---|---|
+| Local-first privacy | No network calls by default; clear export/import controls |
+| Data migrations | Versioned session/report schema with migration tests |
+| Calibrated signals | Blur/similarity thresholds are documented, fixture-tested, and user-overridable |
+| Accessible reports | HTML reports pass automated accessibility checks and print cleanly |
+| Release package | Installable package with changelog, support policy, and signed release notes if distribution requires it |
+| Field validation | Tested on real practice folders supplied by the user |
+| Real-folder benchmark | A user-approved benchmark set covers normal shoots, low-light failures, bursts, emotional keepers, bad files, and unsupported formats |
+
+Exit test: installable v1.0 runs end-to-end on real user shoots and produces trustworthy, repeatable coaching without mutating originals.
+
+## v2.0 Gate - Studio-Grade Training Platform
+
+Goal: turn the local coach into a full training program while preserving local trust.
+
+| Gate | Acceptance Criteria |
+|---|---|
+| Curriculum | Multi-week 28-75mm curriculum with progressive constraints and review rubrics |
+| Personalization | Mission selection adapts to user history, subject interests, and failure patterns |
+| Optional AI critique | Any AI-backed critique is opt-in, sourced, and separated from deterministic evidence |
+| Mobile/desktop UI | Professional UI for missions, reports, contact sheets, and history |
+| Coach mode | Exportable packages for mentors, workshops, or self-review programs |
+
+Exit test: a user can complete a structured curriculum and see measurable improvement across repeated sessions.
+
+## Immediate Next Milestones
+
+| Priority | Milestone | Why Now |
+|---|---|---|
+| 1 | Report-path integration | Field-review evidence now exists; the normal `review` HTML/JSON should expose it directly |
+| 2 | True thumbnail generation | Contact sheets copy local preview bytes today; v0.2 needs real thumbnail extraction/resizing or adapter-backed previews |
+| 3 | Persisted practice CLI | Practice history helpers exist; the user needs `sessions`, `history`, and `next` commands |
+| 4 | Keeper manifests and overrides | Keeper recall exists as a function/CLI handoff input; it needs manifest loading and user correction capture |
+| 5 | Adobe MCP proof execution | Ledger contract exists; next step is real proof exports and run-ledger ingestion from Adobe MCP |
+| 6 | Blur and calibrated image signals | Similarity is conservative metadata/tone logic; v0.3 needs fixture-backed image-signal thresholds |
+| 7 | Real-folder benchmark | Recommendations need user-approved folders with emotional keepers, low light, bursts, bad files, and unsupported formats |
+
+## Research Inputs
+
+The current competitive-learning research brief is in `docs/research/competitive-learning-research-2026-05-10.md`. Its main product change is this: v0.2 should be treated as an evidence engine, not a generic AI-culling sprint. The fastest path toward a professional-grade product is EXIF/source labels, contact sheets, decision buckets, and trust metrics before stronger blur, similarity, or AI critique claims.
+
+## Current Position
+
+As of the 2026-05-11 GitHub/roadmap update, the project is on branch `codex/28-75-trainer-v0-1`.
+
+| Track | Status | Evidence |
+|---|---|---|
+| v0.1 local training loop | Built | Mission, review, coaching report, JSON, and next mission are implemented and tested |
+| v0.1.1 trust hardening | Built | Output preflight, symlink safety, report schema checks, corrupt/empty-folder scoring, and simulator cases are implemented |
+| v0.1.2 field-test intelligence | Mostly built | `field-review`, spread recommendation logic, planned-only Adobe MCP handoff, dry-run validation, contact-sheet sanity, RAW metadata placeholders, and Lightroom fix-sheet export are implemented |
+| Competitive research | Documented | `docs/research/competitive-learning-research-2026-05-10.md` converts market research into testable experiments |
+| v0.2 evidence engine | Started | RAW/source labels, decision buckets, similarity grouping, schema versions, contact-sheet previews, Adobe ledger contracts, keeper recall, and hardening landed; report integration, true thumbnails, persisted history, and real proof ledgers remain |
+| GitHub publication | Active private repo | `zohartito/28-75-trainer` is private; publish from clean product exports, not the broad parent workspace |
+
+The current program checkpoint is documented in `docs/program-checkpoint-2026-05-10.md`.
+
+## Program Metrics To Track
+
+| Metric | Why It Matters |
+|---|---|
+| Original-file safety | Local trust is the product foundation |
+| False reject risk | AI/culling tools lose trust when they hide emotional or action keepers |
+| Override rate | User corrections reveal where scoring or grouping is wrong |
+| Time to first useful insight | Professional tools win when review gets fast without becoming opaque |
+| Next-mission specificity | The trainer only matters if it changes the next shoot |
+| Real-folder pass rate | Synthetic fixtures are useful, but field folders decide whether the program is actually working |
