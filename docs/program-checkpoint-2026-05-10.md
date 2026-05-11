@@ -101,21 +101,19 @@ The checkpoint verification passed with these commands:
 
 GitHub should be updated, but not by pushing the current parent workspace.
 
-Current blocker:
+Current GitHub status:
 
-- `gh` is authenticated.
-- No Git remote is configured.
-- Git root is `C:\Users\zohar_4ta16fp\Documents\Playground`.
-- Product path is `28-75-trainer/`.
-- Parent workspace contains many unrelated untracked files and long-path warnings.
+- Private repo created: https://github.com/zohartito/28-75-trainer
+- Initial import was pushed from a clean export of `28-75-trainer/`.
+- The parent `Playground` workspace still has no remote by design.
+- Parent workspace contains many unrelated untracked files and long-path warnings, so it should not become the GitHub repo.
 
 Safe publish path:
 
-1. Confirm or create a dedicated `zohartito/28-75-trainer` repository.
-2. Publish only the `28-75-trainer/` product boundary.
-3. Push branch `codex/28-75-trainer-v0-1`.
-4. Open a draft PR using `docs/pr-description.md` and `docs/github-update-2026-05-10.md`.
-5. Create GitHub issues for v0.2 Evidence Engine, decision/trust metrics, blur/similarity evidence, practice system, and workflow handoff.
+1. Keep publishing only the `28-75-trainer/` product boundary.
+2. Use a dedicated local clone/export for GitHub updates.
+3. Use GitHub issues #1-#5 as the near-term execution queue.
+4. Open a draft PR after a stable feature-branch workflow exists.
 
 ## Recommended Subagents Next
 

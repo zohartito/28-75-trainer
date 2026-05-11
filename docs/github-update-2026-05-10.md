@@ -2,7 +2,13 @@
 
 ## Status
 
-The GitHub CLI is authenticated, but the broad parent workspace should not be pushed directly:
+Published as a private GitHub repository:
+
+- Repository: https://github.com/zohartito/28-75-trainer
+- Initial import branch: `main`
+- Import method: clean export of the tracked `28-75-trainer/` product folder only
+
+The broad parent workspace should still not be pushed directly:
 
 - Current branch: `codex/28-75-trainer-v0-1`
 - Git remote: none configured
@@ -10,7 +16,7 @@ The GitHub CLI is authenticated, but the broad parent workspace should not be pu
 - Product path: `28-75-trainer/`
 - Risk: the Git root contains many unrelated untracked workspace files, so pushing the parent repository as-is would be unsafe.
 
-GitHub should be updated from a dedicated GitHub repository for `28-75-trainer/`, or from a clean export of only that product folder. Do not push the broad `Playground` root.
+GitHub has been updated from a dedicated clean export. Do not push the broad `Playground` root.
 
 ## Recommended PR Title
 
@@ -64,18 +70,15 @@ The research update clarifies that 28-75 Trainer should not become a generic AI 
 
 | Issue | Scope | Acceptance Gate |
 |---|---|---|
-| v0.1.2 Field-Test Intelligence | More-than-12 grouping, role assignment, balanced picks, Lightroom fix notes | A 30-photo shoot produces 12 recommended picks, alternates, missing-vertical warnings, and Lightroom notes |
-| RAW Metadata Intake | RAW focal length and basic metadata without mutating originals | RAW architectural-model shoot reports actual focal lengths and roles |
-| v0.2 Evidence Engine | EXIF/source labels, JSON schema expansion, contact sheet v1 | Real JPEG folder produces source-labeled report and contact sheet without mutating originals |
-| Decision Buckets And Trust Metrics | `select`/`maybe`/`reject`/`practice-evidence` buckets, override tracking, false reject risk | Every decision has a reason and source label |
-| Blur And Similarity Evidence | Conservative blur heuristic, perceptual duplicate grouping, exact duplicate separation | Fixture suite covers sharp, blurry, low-texture, exact duplicate, and near-duplicate cases |
-| Practice System | Session history, three-shot proof, reshoot comparison, progress report | Three reviewed sessions produce a history-backed next mission |
-| Workflow Handoff | CSV/JSON exports, sidecar-friendly annotations, ignored generated folders, progress output | Large nested folder can be reviewed with filters and clear handoff artifacts |
+| [#1](https://github.com/zohartito/28-75-trainer/issues/1) v0.1.2 Field-Test Intelligence | More-than-12 grouping, role assignment, balanced picks, Lightroom fix notes | A 30-photo shoot produces 12 recommended picks, alternates, missing-vertical warnings, and Lightroom notes |
+| [#2](https://github.com/zohartito/28-75-trainer/issues/2) RAW Metadata Intake | RAW focal length and basic metadata without mutating originals | RAW architectural-model shoot reports actual focal lengths and roles |
+| [#3](https://github.com/zohartito/28-75-trainer/issues/3) Contact Sheet v1 | Local thumbnails and field-review evidence | Report has visual evidence without network assets or original mutation |
+| [#4](https://github.com/zohartito/28-75-trainer/issues/4) Pre-v0.2 Hardening | Nested schema validation, atomic writes, metadata honesty | Richer reports fail safely |
+| [#5](https://github.com/zohartito/28-75-trainer/issues/5) Practice System | First-week activation and session memory | Three reviewed sessions produce a history-backed next mission |
 
 ## Publish Checklist
 
-1. Publish only the `28-75-trainer/` product folder, not the parent `Playground` root.
-2. Prefer a private `zohartito/28-75-trainer` repository unless the user requests public.
-3. Push the current product state.
-4. Create issues from the suggested issue list above.
-5. Open a draft PR only after there is a stable default branch and feature branch workflow.
+1. Keep `zohartito/28-75-trainer` private unless the user requests public.
+2. Push future updates from a clean product export or a dedicated local repo, not from `Playground`.
+3. Use GitHub issues #1-#5 as the next execution queue.
+4. Open a draft PR only after there is a stable feature-branch workflow.

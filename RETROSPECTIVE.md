@@ -264,3 +264,27 @@
 - Treat the mission as structure and the folder as a candidate pool.
 - Build role grouping and recommended picks before stronger scoring.
 - Prioritize RAW metadata intake because field testing produced RAW files immediately.
+
+## 2026-05-10 GitHub Publication
+
+### What worked
+
+- Publishing from a clean export of `28-75-trainer/` avoided the unsafe broad `Playground` root.
+- The GitHub repo is private by default, which is the right posture before real photo workflows mature.
+- Issues #1-#5 now mirror the immediate roadmap: field-test intelligence, RAW metadata, contact sheets, hardening, and practice memory.
+
+### What did not work
+
+- The parent workspace still has no clean remote and should not be treated as the release repo.
+- The GitHub import starts as a clean product import rather than preserving the parent repo's full internal commit history.
+
+### Why
+
+- The parent workspace contains unrelated untracked files and long-path warnings.
+- A product-only repo is easier to reason about, safer to share, and closer to how this should be developed going forward.
+
+### What we would do differently
+
+- Start the project in its own repository before the first commit.
+- Keep GitHub publication tied to a dedicated local clone/export path.
+- Use issues as the operating queue immediately after publishing.
