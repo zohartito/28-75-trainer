@@ -38,6 +38,8 @@ def build_contact_sheet_html(
         <th>Filename</th>
         <th>Trainer Shot</th>
         <th>Role</th>
+        <th>Focal Length</th>
+        <th>Orientation</th>
         <th>Selection</th>
         <th>Status / Warnings</th>
         <th>Notes</th>
@@ -117,6 +119,8 @@ def _contact_sheet_row(item: dict[str, Any], recommended: bool) -> str:
         <td>{escape(_filename(item))}</td>
         <td>Shot {escape(str(_shot_number(item)))}</td>
         <td>{escape(str(item.get("role") or "unknown"))}</td>
+        <td>{escape(_focal_length(item))}</td>
+        <td>{escape(_orientation(item))}</td>
         <td>{selection}</td>
         <td>{escape(warning_status)}</td>
         <td>{escape(notes)}</td>
@@ -135,6 +139,19 @@ def _filename(item: dict[str, Any]) -> str:
     source_path = _source_path(item)
     metadata = item.get("metadata") or {}
     return str(item.get("filename") or metadata.get("filename") or (Path(source_path).name if source_path else "unknown"))
+
+
+def _focal_length(item: dict[str, Any]) -> str:
+    metadata = item.get("metadata") or {}
+    exif_hints = item.get("exif_hints") or {}
+    focal = metadata.get("focal_length") or metadata.get("focal_length_mm") or exif_hints.get("focal_length_mm")
+    return f"{focal}mm" if focal is not None else "unknown"
+
+
+def _orientation(item: dict[str, Any]) -> str:
+    metadata = item.get("metadata") or {}
+    exif_hints = item.get("exif_hints") or {}
+    return str(metadata.get("orientation") or exif_hints.get("orientation") or "unknown")
 
 
 def _source_path(item: dict[str, Any]) -> str:

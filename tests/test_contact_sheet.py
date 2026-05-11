@@ -40,6 +40,8 @@ class ContactSheetTests(unittest.TestCase):
         self.assertIn("wide_&lt;unsafe&gt;.jpg", html)
         self.assertIn("Shot 3", html)
         self.assertIn("wide", html)
+        self.assertIn("28mm", html)
+        self.assertIn("horizontal", html)
         self.assertIn("Recommended", html)
         self.assertIn("Alternate", html)
         self.assertIn("ok", html)
@@ -110,7 +112,11 @@ def reviewed_item(
         "trainer_shot": shot,
         "role": role,
         "source": source or f"/shoot/{shot:03d}.jpg",
-        "metadata": {"filename": filename or f"{shot:03d}.jpg"},
+        "metadata": {
+            "filename": filename or f"{shot:03d}.jpg",
+            "focal_length": {"wide": 28, "massing": 35, "facade": 50, "tight": 75}.get(role),
+            "orientation": "horizontal",
+        },
         "status": status,
         "warnings": warnings or [],
         "notes": notes or [],
