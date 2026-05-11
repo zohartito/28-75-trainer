@@ -69,6 +69,7 @@ Status: partly built; roadmap updated from the first real architectural-model fi
 | Role grouping | Report groups likely wide/context, massing, facade/elevation, detail/context, tight detail, and compression candidates | Planned |
 | Recommended picks | Report recommends a balanced 12-photo set from larger shoots | Planned |
 | Lightroom fix sheet | Report gives per-photo Lightroom Classic starting steps | Planned |
+| AI agent handoff prompt | Lightroom/Codex agent prompt exists for turning trainer JSON into beginner Lightroom steps | Built |
 | RAW metadata intake | RAW files expose focal length and basic metadata without mutating originals | Planned |
 
 Exit test: a 30-photo architectural-model folder produces mission coverage, alternates, recommended 12 picks, missing-vertical warnings, and Lightroom fix notes while preserving originals.
@@ -175,7 +176,7 @@ Exit test: a user can complete a structured curriculum and see measurable improv
 |---|---|---|
 | 1 | Real EXIF/JPEG metadata fixture path | Current filename-tag fallback is useful but not enough for real camera folders |
 | 2 | Extra-photo role grouping | The real field test produced 30 frames, so the trainer must pick a balanced set from alternates |
-| 3 | Lightroom Classic fix sheet | The next useful output is edit guidance after the trainer report, not a plugin yet |
+| 3 | Lightroom Classic fix sheet | The next useful output is generated edit guidance after the trainer report; the AI-agent prompt is now the manual bridge |
 | 4 | RAW metadata intake | The real field test produced RAW frames, so JPEG-only EXIF is not enough |
 | 5 | Pre-v0.2 hardening | Audit found shallow nested JSON validation, non-atomic paired writes, and metadata scoring honesty gaps |
 | 6 | Contact sheet v1 | Research confirms serious review tools win trust through fast visual evidence, not text-only tables |

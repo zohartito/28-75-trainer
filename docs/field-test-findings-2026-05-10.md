@@ -44,6 +44,7 @@ The current Windows branch has:
 - field-test guide;
 - Adobe Bridge workflow;
 - Lightroom Classic manual fix-pass guide;
+- Lightroom AI/Codex agent prompt;
 - JPEG EXIF focal-length parsing;
 - review-copy helper;
 - tests and simulator.
@@ -59,6 +60,7 @@ Ship v0.1.2 as **Field-Test Intelligence**:
 - candidate/alternate grouping;
 - recommended 12-photo set;
 - Lightroom Classic fix notes;
+- Lightroom plan artifacts in JSON, CSV, and Lua form;
 - RAW metadata intake plan or adapter.
 
 Exit test: a folder with 30 photos produces a report that says `30 photos found`, identifies mission coverage, lists alternates, recommends 12 picks, flags missing verticals, and includes Lightroom fix notes without mutating originals.

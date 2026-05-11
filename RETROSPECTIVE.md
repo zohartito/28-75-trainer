@@ -288,3 +288,25 @@
 - Start the project in its own repository before the first commit.
 - Keep GitHub publication tied to a dedicated local clone/export path.
 - Use issues as the operating queue immediately after publishing.
+
+## 2026-05-10 Lightroom AI Agent Prompt
+
+### What worked
+
+- The Lightroom agent prompt expresses the right product boundary: 28-75 Trainer decides what each photo is and what it needs; the AI agent translates that into Lightroom Classic steps.
+- The prompt keeps beginner safety explicit: non-destructive edits, no deletes, no original overwrites.
+- The expected plan artifacts now have stable paths: JSON, CSV, and Lua under `reports/lightroom/`.
+
+### What did not work
+
+- The Lightroom agent handoff is still manual. The repo documents the prompt but does not yet generate the plan artifacts in this branch.
+- The Lightroom Lua path needs real Lightroom Classic validation before we treat it as executable workflow.
+
+### Why
+
+- This is the right intermediate step before a Lightroom plug-in: prove the edit checklist and plan schema before writing into Lightroom.
+
+### What we would do differently
+
+- Keep prompt, JSON plan, CSV plan, and Lua plan as separate artifacts so each can be tested independently.
+- Treat Lightroom automation as an integration layer after the trainer report is trustworthy.

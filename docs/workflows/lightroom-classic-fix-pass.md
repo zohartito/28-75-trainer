@@ -70,4 +70,17 @@ The next professional-grade version should generate a Lightroom fix list from th
 - edit checklist per image;
 - optional XMP/sidecar or metadata handoff only after the safety model is settled.
 
+## AI Agent Handoff
+
+The current bridge is an AI-agent prompt plus generated plan files:
+
+```text
+docs/prompts/lightroom-ai-agent-prompt.md
+reports/lightroom/lightroom-plan.json
+reports/lightroom/lightroom-plan.csv
+reports/lightroom/lightroom-plan.lua
+```
+
+Use the trainer JSON and the Lightroom plan files as the source of truth. The AI agent should convert them into exact Lightroom Classic steps for a beginner, while keeping all edits non-destructive.
+
 For now, keep it manual and safe: trainer first, Lightroom second, exports separate.
