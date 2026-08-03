@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import struct
 import xml.etree.ElementTree as ET
@@ -12,6 +13,40 @@ FOCAL_RE = re.compile(r"(?<!\d)(?P<focal>\d{2,3})\s?mm(?![A-Za-z0-9])", re.IGNOR
 APERTURE_RE = re.compile(r"(?<![A-Za-z0-9])f[_-]?(?P<aperture>\d+(?:[._]\d+)?)", re.IGNORECASE)
 ISO_RE = re.compile(r"(?<![A-Za-z0-9])iso[_-]?(?P<iso>\d{2,6})(?![A-Za-z0-9])", re.IGNORECASE)
 RAW_IMAGE_EXTENSIONS = {".arw", ".cr2", ".cr3", ".dng", ".nef", ".orf", ".raf", ".rw2", ".pef", ".srw"}
+
+# XMP sidecars are untrusted metadata accompanying images. These limits cover
+# current high-resolution cameras while keeping conversions and arithmetic
+# bounded before values reach the review pipeline.
+MAX_XMP_INTEGER_DIGITS = 9
+MAX_XMP_DECIMAL_FRACTION_DIGITS = 6
+MAX_IMAGE_DIMENSION = 100_000
+MAX_IMAGE_PIXELS = 500_000_000
+MAX_FOCAL_LENGTH_MM = 2_000
+XMP_INTEGER_RE = re.compile(rf"\d{{1,{MAX_XMP_INTEGER_DIGITS}}}")
+XMP_DECIMAL_RE = re.compile(
+    rf"\d{{1,{MAX_XMP_INTEGER_DIGITS}}}(?:\.\d{{1,{MAX_XMP_DECIMAL_FRACTION_DIGITS}}})?"
+)
+
+# JPEG metadata must be available before Start Of Scan. Limit both consumed
+# bytes and parsed markers so malformed files cannot turn metadata extraction
+# into unbounded work.
+MAX_JPEG_METADATA_BYTES = 1024 * 1024
+MAX_JPEG_MARKERS = 4_096
+JPEG_SOF_MARKERS = {
+    0xC0,
+    0xC1,
+    0xC2,
+    0xC3,
+    0xC5,
+    0xC6,
+    0xC7,
+    0xC9,
+    0xCA,
+    0xCB,
+    0xCD,
+    0xCE,
+    0xCF,
+}
 
 
 @dataclass(frozen=True)
@@ -29,6 +64,15 @@ class XmpMetadata:
     width: int | None = None
     height: int | None = None
     focal_length_mm: int | None = None
+    warnings: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class JpegMetadata:
+    width: int | None = None
+    height: int | None = None
+    exif_payload: bytes | None = None
+    warnings: tuple[str, ...] = field(default_factory=tuple)
 
 
 def read_metadata(path: Path) -> MetadataResult:
@@ -36,7 +80,15 @@ def read_metadata(path: Path) -> MetadataResult:
     if suffix in RAW_IMAGE_EXTENSIONS:
         return raw_placeholder_metadata(path)
 
-    width, height = image_dimensions(path)
+    warnings: tuple[str, ...] = ()
+    focal_length: int | None = None
+    if suffix in {".jpg", ".jpeg"}:
+        jpeg = read_jpeg_metadata(path)
+        width, height = jpeg.width, jpeg.height
+        warnings = jpeg.warnings
+        focal_length = tiff_focal_length(jpeg.exif_payload) if jpeg.exif_payload is not None else None
+    else:
+        width, height = image_dimensions(path)
     dimensions_source = "unavailable"
     if width is not None and height is not None:
         if suffix == ".png":
@@ -46,7 +98,6 @@ def read_metadata(path: Path) -> MetadataResult:
         else:
             dimensions_source = "image_header"
 
-    focal_length = exif_focal_length(path)
     focal_length_source = "exif" if focal_length is not None else "unavailable"
     if focal_length is None:
         focal_length = infer_focal_length(path.name)
@@ -59,6 +110,7 @@ def read_metadata(path: Path) -> MetadataResult:
         dimensions_source=dimensions_source,
         focal_length_mm=focal_length,
         focal_length_source=focal_length_source,
+        warnings=warnings,
     )
 
 
@@ -79,7 +131,7 @@ def raw_placeholder_metadata(path: Path) -> MetadataResult:
         dimensions_source=dimensions_source,
         focal_length_mm=focal_length,
         focal_length_source=focal_length_source,
-        warnings=("raw_image_not_decoded",),
+        warnings=("raw_image_not_decoded", *(sidecar.warnings if sidecar else ())),
     )
 
 
@@ -89,19 +141,32 @@ def read_xmp_sidecar_metadata(path: Path) -> XmpMetadata | None:
         return None
     try:
         tree = ET.parse(sidecar)
-    except (OSError, ET.ParseError):
-        return None
+    except (OSError, ET.ParseError, ValueError, OverflowError):
+        return XmpMetadata(warnings=("xmp_metadata_unreadable",))
     fields: dict[str, str] = {}
     for element in tree.iter():
         for key, value in element.attrib.items():
             fields[local_name(key)] = value
         if element.text and element.text.strip():
             fields.setdefault(local_name(element.tag), element.text.strip())
-    return XmpMetadata(
-        width=parse_int(fields.get("PixelXDimension") or fields.get("ImageWidth") or fields.get("ExifImageWidth")),
-        height=parse_int(fields.get("PixelYDimension") or fields.get("ImageLength") or fields.get("ExifImageHeight")),
-        focal_length_mm=parse_focal_value(fields.get("FocalLength")),
-    )
+    width_value = fields.get("PixelXDimension") or fields.get("ImageWidth") or fields.get("ExifImageWidth")
+    height_value = fields.get("PixelYDimension") or fields.get("ImageLength") or fields.get("ExifImageHeight")
+    focal_value = fields.get("FocalLength")
+    try:
+        width, width_invalid = parse_xmp_dimension(width_value)
+        height, height_invalid = parse_xmp_dimension(height_value)
+        focal_length, focal_invalid = parse_xmp_focal_value(focal_value)
+    except (ValueError, OverflowError):
+        # The input is deliberately constrained before conversion, but this is
+        # the final metadata boundary: a bad sidecar must never abort a batch.
+        return XmpMetadata(warnings=("xmp_metadata_invalid",))
+
+    dimensions_invalid = width_invalid or height_invalid
+    if width is not None and height is not None and width * height > MAX_IMAGE_PIXELS:
+        width = height = None
+        dimensions_invalid = True
+    warnings = ("xmp_metadata_invalid",) if dimensions_invalid or focal_invalid else ()
+    return XmpMetadata(width=width, height=height, focal_length_mm=focal_length, warnings=warnings)
 
 
 def xmp_sidecar_path(path: Path) -> Path | None:
@@ -119,28 +184,58 @@ def local_name(name: str) -> str:
 
 
 def parse_int(value: str | None) -> int | None:
-    if not value:
-        return None
-    match = re.search(r"\d+", value)
-    if not match:
-        return None
-    return int(match.group(0))
+    parsed, _ = parse_xmp_dimension(value)
+    return parsed
 
 
 def parse_focal_value(value: str | None) -> int | None:
-    if not value:
-        return None
+    parsed, _ = parse_xmp_focal_value(value)
+    return parsed
+
+
+def parse_xmp_dimension(value: str | None) -> tuple[int | None, bool]:
+    if value is None or not value.strip():
+        return None, False
     text = value.strip()
-    rational = re.fullmatch(r"(?P<numerator>\d+(?:\.\d+)?)/(?P<denominator>\d+(?:\.\d+)?)", text)
-    if rational:
-        denominator = float(rational.group("denominator"))
-        if denominator == 0:
-            return None
-        return int(round(float(rational.group("numerator")) / denominator))
-    match = re.search(r"\d+(?:\.\d+)?", text)
-    if not match:
-        return None
-    return int(round(float(match.group(0))))
+    if XMP_INTEGER_RE.fullmatch(text) is None:
+        return None, True
+    try:
+        parsed = int(text)
+    except (ValueError, OverflowError):
+        return None, True
+    if not 0 < parsed <= MAX_IMAGE_DIMENSION:
+        return None, True
+    return parsed, False
+
+
+def parse_xmp_focal_value(value: str | None) -> tuple[int | None, bool]:
+    if value is None or not value.strip():
+        return None, False
+    text = value.strip()
+    parts = text.split("/")
+    if len(parts) == 1:
+        numerator_text = parts[0]
+        denominator_text = None
+    elif len(parts) == 2:
+        numerator_text, denominator_text = parts
+    else:
+        return None, True
+    if XMP_DECIMAL_RE.fullmatch(numerator_text) is None or (
+        denominator_text is not None and XMP_DECIMAL_RE.fullmatch(denominator_text) is None
+    ):
+        return None, True
+    try:
+        numerator = float(numerator_text)
+        denominator = float(denominator_text) if denominator_text is not None else 1.0
+        focal = numerator / denominator
+    except (ValueError, OverflowError, ZeroDivisionError):
+        return None, True
+    if not math.isfinite(focal):
+        return None, True
+    normalized = int(round(focal))
+    if not 0 < normalized <= MAX_FOCAL_LENGTH_MM:
+        return None, True
+    return normalized, False
 
 
 def infer_focal_length(filename: str) -> int | None:
@@ -171,7 +266,8 @@ def image_dimensions(path: Path) -> tuple[int | None, int | None]:
             if suffix == ".png":
                 return png_dimensions(handle.read(32))
             if suffix in {".jpg", ".jpeg"}:
-                return jpeg_dimensions(handle)
+                metadata = parse_jpeg_metadata(handle)
+                return metadata.width, metadata.height
     except OSError:
         return None, None
     return None, None
@@ -182,7 +278,7 @@ def exif_focal_length(path: Path) -> int | None:
         return None
     try:
         with path.open("rb") as handle:
-            payload = jpeg_exif_payload(handle)
+            payload = parse_jpeg_metadata(handle).exif_payload
     except OSError:
         return None
     if payload is None:
@@ -190,29 +286,108 @@ def exif_focal_length(path: Path) -> int | None:
     return tiff_focal_length(payload)
 
 
+def read_jpeg_metadata(path: Path) -> JpegMetadata:
+    try:
+        with path.open("rb") as handle:
+            return parse_jpeg_metadata(handle)
+    except OSError:
+        return JpegMetadata(warnings=("jpeg_metadata_unreadable",))
+
+
 def jpeg_exif_payload(handle: BinaryIO) -> bytes | None:
-    if handle.read(2) != b"\xff\xd8":
-        return None
+    return parse_jpeg_metadata(handle).exif_payload
+
+
+def parse_jpeg_metadata(handle: BinaryIO) -> JpegMetadata:
+    """Read JPEG header segments once with exact, bounded reads.
+
+    JPEG metadata lives before Start Of Scan. This parser keeps all marker work
+    within fixed byte and marker budgets, stops at the end of a valid SOS
+    header, and supplies dimensions plus the EXIF payload from one pass.
+    """
+
+    bytes_read = 0
+    marker_count = 0
+    width: int | None = None
+    height: int | None = None
+    exif_payload: bytes | None = None
+
+    def read_exact(size: int) -> tuple[bytes | None, bool]:
+        """Return (data, budget_exhausted) without reading beyond ``size``."""
+        nonlocal bytes_read
+        if size > MAX_JPEG_METADATA_BYTES - bytes_read:
+            return None, True
+        data = handle.read(size)
+        bytes_read += len(data)
+        if len(data) != size:
+            return None, False
+        return data, False
+
+    def failure(limit_exceeded: bool) -> JpegMetadata:
+        warning = "jpeg_metadata_limit_exceeded" if limit_exceeded else "jpeg_metadata_invalid"
+        return JpegMetadata(width=width, height=height, exif_payload=exif_payload, warnings=(warning,))
+
+    soi, limit_exceeded = read_exact(2)
+    if soi is None or soi != b"\xff\xd8":
+        return failure(limit_exceeded)
+
     while True:
-        marker_prefix = handle.read(1)
-        if marker_prefix == b"":
-            return None
+        if marker_count >= MAX_JPEG_MARKERS:
+            return failure(True)
+        marker_prefix, limit_exceeded = read_exact(1)
+        if marker_prefix is None:
+            return failure(limit_exceeded)
         if marker_prefix != b"\xff":
+            return failure(False)
+        while True:
+            marker_code, limit_exceeded = read_exact(1)
+            if marker_code is None:
+                return failure(limit_exceeded)
+            if marker_code != b"\xff":
+                break
+            marker_count += 1
+            if marker_count >= MAX_JPEG_MARKERS:
+                return failure(True)
+        marker = marker_code[0]
+        marker_count += 1
+
+        # Stuffed marker bytes only occur in entropy-coded data, which begins
+        # at SOS. Treat one before SOS as malformed rather than scanning onward.
+        if marker == 0x00:
+            return failure(False)
+        if marker == 0xD9:  # End Of Image.
+            return JpegMetadata(width=width, height=height, exif_payload=exif_payload)
+        if marker == 0xD8 or marker == 0x01 or 0xD0 <= marker <= 0xD7:
             continue
-        marker = handle.read(1)
-        while marker == b"\xff":
-            marker = handle.read(1)
-        if marker in {b"\xd8", b"\xd9"}:
-            continue
-        length_bytes = handle.read(2)
-        if len(length_bytes) != 2:
-            return None
+
+        length_bytes, limit_exceeded = read_exact(2)
+        if length_bytes is None:
+            return failure(limit_exceeded)
         segment_length = struct.unpack(">H", length_bytes)[0]
         if segment_length < 2:
-            return None
-        payload = handle.read(segment_length - 2)
-        if marker == b"\xe1" and payload.startswith(b"Exif\x00\x00"):
-            return payload[6:]
+            return failure(False)
+        payload, limit_exceeded = read_exact(segment_length - 2)
+        if payload is None:
+            return failure(limit_exceeded)
+
+        if marker == 0xDA:  # Start Of Scan: no further header metadata exists.
+            if not valid_sos_payload(payload):
+                return failure(False)
+            return JpegMetadata(width=width, height=height, exif_payload=exif_payload)
+
+        if marker in JPEG_SOF_MARKERS and len(payload) >= 5:
+            height, width = struct.unpack_from(">HH", payload, 1)
+            if width == 0 or height == 0:
+                return failure(False)
+        elif marker == 0xE1 and exif_payload is None and payload.startswith(b"Exif\x00\x00"):
+            exif_payload = bytes(payload[6:])
+
+def valid_sos_payload(payload: bytes) -> bool:
+    """Validate the structural envelope of a JPEG Start Of Scan segment."""
+    if not payload:
+        return False
+    component_count = payload[0]
+    return 1 <= component_count <= 4 and len(payload) == 4 + 2 * component_count
 
 
 def tiff_focal_length(payload: bytes) -> int | None:
@@ -309,43 +484,5 @@ def png_dimensions(header: bytes) -> tuple[int | None, int | None]:
 
 
 def jpeg_dimensions(handle: BinaryIO) -> tuple[int | None, int | None]:
-    if handle.read(2) != b"\xff\xd8":
-        return None, None
-    while True:
-        marker_prefix = handle.read(1)
-        if marker_prefix == b"":
-            return None, None
-        if marker_prefix != b"\xff":
-            continue
-        marker = handle.read(1)
-        while marker == b"\xff":
-            marker = handle.read(1)
-        if marker in {b"\xd8", b"\xd9"}:
-            continue
-        length_bytes = handle.read(2)
-        if len(length_bytes) != 2:
-            return None, None
-        segment_length = struct.unpack(">H", length_bytes)[0]
-        if segment_length < 2:
-            return None, None
-        if marker and marker[0] in {
-            0xC0,
-            0xC1,
-            0xC2,
-            0xC3,
-            0xC5,
-            0xC6,
-            0xC7,
-            0xC9,
-            0xCA,
-            0xCB,
-            0xCD,
-            0xCE,
-            0xCF,
-        }:
-            data = handle.read(5)
-            if len(data) != 5:
-                return None, None
-            height, width = struct.unpack(">HH", data[1:5])
-            return int(width), int(height)
-        handle.seek(segment_length - 2, 1)
+    metadata = parse_jpeg_metadata(handle)
+    return metadata.width, metadata.height
