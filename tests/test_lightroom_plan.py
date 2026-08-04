@@ -8,6 +8,35 @@ from trainer2875.lightroom_plan import lightroom_plan_to_csv, lightroom_plan_to_
 
 
 class LightroomPlanTests(unittest.TestCase):
+    def test_exports_encode_markdown_and_neutralize_csv_formula_cells(self) -> None:
+        handoff = adobe_mcp_handoff()
+        photo = handoff["photos"][1]
+        photo["filename"] = "[click](https://bad.example)"
+        photo["photo_id"] = "=HYPERLINK(\"https://bad.example\")"
+        photo["edit_intent"]["what_needs_fixing"] = ["<script>alert(1)</script>"]
+
+        markdown = lightroom_plan_to_markdown(handoff, source_json_path="[source](bad)")
+        rows = list(csv.DictReader(io.StringIO(lightroom_plan_to_csv(handoff))))
+
+        self.assertIn("\\[click\\]\\(https://bad.example\\)", markdown)
+        self.assertIn("\\<script\\>alert\\(1\\)\\</script\\>", markdown)
+        self.assertEqual(rows[0]["photo_id"], "'=HYPERLINK(\"https://bad.example\")")
+
+    def test_markdown_flattens_attacker_line_separators_and_block_openers(self) -> None:
+        handoff = adobe_mcp_handoff()
+        photo = handoff["photos"][1]
+        photo["filename"] = "frame\r# forged heading\u2028> forged quote\n- forged list"
+        photo["edit_intent"]["beginner_readable_explanation"] = "First line\n1. forged ordered item\x85[active](https://bad.example)"
+
+        markdown = lightroom_plan_to_markdown(handoff)
+
+        self.assertNotIn("\n# forged heading", markdown)
+        self.assertNotIn("\n> forged quote", markdown)
+        self.assertNotIn("\n- forged list", markdown)
+        self.assertNotIn("\n1. forged ordered item", markdown)
+        self.assertIn("frame \\# forged heading \\> forged quote - forged list", markdown)
+        self.assertIn("First line 1. forged ordered item \\[active\\]\\(https://bad.example\\)", markdown)
+
     def test_markdown_export_groups_recommended_photos_with_boundary_language(self) -> None:
         handoff = adobe_mcp_handoff()
 

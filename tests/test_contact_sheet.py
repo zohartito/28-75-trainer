@@ -68,6 +68,21 @@ class ContactSheetTests(unittest.TestCase):
             self.assertTrue(output.exists())
             self.assertEqual(original.read_bytes(), before)
 
+    def test_write_contact_sheet_rejects_symlink_leaf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "target.html"
+            target.write_text("keep", encoding="utf-8")
+            output = root / "contact-sheet.html"
+            try:
+                output.symlink_to(target)
+            except OSError as exc:
+                self.skipTest(f"symlinks unavailable on this platform: {exc}")
+
+            with self.assertRaises(ValueError):
+                write_contact_sheet_html([reviewed_item(1, "wide")], output)
+            self.assertEqual(target.read_text(encoding="utf-8"), "keep")
+
     def test_visual_selection_sanity_flags_narrow_shot_cluster_and_duplicate_sources(self) -> None:
         reviewed = [
             reviewed_item(1, "wide", filename="dup.jpg", source="/shoot/dup-a.jpg"),

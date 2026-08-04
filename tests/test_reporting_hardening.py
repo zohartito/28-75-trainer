@@ -40,6 +40,17 @@ class ReportingHardeningTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, rf"{container}.*{missing_field}"):
                     validate_report_data(data)
 
+    def test_validate_report_data_rejects_non_finite_and_wrong_nested_values(self) -> None:
+        data = valid_report_data()
+        data["scorecard"]["total_score"] = float("nan")
+        with self.assertRaisesRegex(ValueError, "finite"):
+            validate_report_data(data)
+
+        data = valid_report_data()
+        data["analysis"]["photos"][0]["warnings"] = [object()]
+        with self.assertRaisesRegex(ValueError, "warnings"):
+            validate_report_data(data)
+
 
 def valid_report_data() -> dict[str, object]:
     mission = {

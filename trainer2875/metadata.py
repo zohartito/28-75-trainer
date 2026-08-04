@@ -3,10 +3,12 @@ from __future__ import annotations
 import math
 import re
 import struct
-import xml.etree.ElementTree as ET
+from xml.parsers import expat
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import BinaryIO
+
+from .safeio import BoundedReader, MAX_FILE_BYTES, MAX_XMP_BYTES, file_identity, open_regular_file, verify_file_unchanged
 
 
 FOCAL_RE = re.compile(r"(?<!\d)(?P<focal>\d{2,3})\s?mm(?![A-Za-z0-9])", re.IGNORECASE)
@@ -22,6 +24,15 @@ MAX_XMP_DECIMAL_FRACTION_DIGITS = 6
 MAX_IMAGE_DIMENSION = 100_000
 MAX_IMAGE_PIXELS = 500_000_000
 MAX_FOCAL_LENGTH_MM = 2_000
+MAX_XMP_ELEMENTS = 10_000
+MAX_XMP_DEPTH = 128
+MAX_XMP_FIELDS = 1_000
+MAX_XMP_PARSE_CHUNK_BYTES = 4 * 1024
+MAX_XMP_CHARACTER_DATA = MAX_XMP_BYTES
+MAX_XMP_TEXT_VALUE_CHARS = 16 * 1024
+XMP_METADATA_FIELDS = frozenset(
+    {"PixelXDimension", "ImageWidth", "ExifImageWidth", "PixelYDimension", "ImageLength", "ExifImageHeight", "FocalLength"}
+)
 XMP_INTEGER_RE = re.compile(rf"\d{{1,{MAX_XMP_INTEGER_DIGITS}}}")
 XMP_DECIMAL_RE = re.compile(
     rf"\d{{1,{MAX_XMP_INTEGER_DIGITS}}}(?:\.\d{{1,{MAX_XMP_DECIMAL_FRACTION_DIGITS}}})?"
@@ -75,20 +86,20 @@ class JpegMetadata:
     warnings: tuple[str, ...] = field(default_factory=tuple)
 
 
-def read_metadata(path: Path) -> MetadataResult:
+def read_metadata(path: Path, *, handle: BinaryIO | None = None, review_root: Path | None = None) -> MetadataResult:
     suffix = path.suffix.lower()
     if suffix in RAW_IMAGE_EXTENSIONS:
-        return raw_placeholder_metadata(path)
+        return raw_placeholder_metadata(path, review_root=review_root)
 
     warnings: tuple[str, ...] = ()
     focal_length: int | None = None
     if suffix in {".jpg", ".jpeg"}:
-        jpeg = read_jpeg_metadata(path)
+        jpeg = parse_jpeg_metadata(handle) if handle is not None else read_jpeg_metadata(path)
         width, height = jpeg.width, jpeg.height
         warnings = jpeg.warnings
         focal_length = tiff_focal_length(jpeg.exif_payload) if jpeg.exif_payload is not None else None
     else:
-        width, height = image_dimensions(path)
+        width, height = image_dimensions(path, handle=handle)
     dimensions_source = "unavailable"
     if width is not None and height is not None:
         if suffix == ".png":
@@ -114,8 +125,8 @@ def read_metadata(path: Path) -> MetadataResult:
     )
 
 
-def raw_placeholder_metadata(path: Path) -> MetadataResult:
-    sidecar = read_xmp_sidecar_metadata(path)
+def raw_placeholder_metadata(path: Path, *, review_root: Path | None = None) -> MetadataResult:
+    sidecar = read_xmp_sidecar_metadata(path, review_root=review_root)
     focal_length = sidecar.focal_length_mm if sidecar else None
     focal_length_source = "xmp_sidecar" if focal_length is not None else "raw_placeholder"
     if focal_length is None:
@@ -135,20 +146,17 @@ def raw_placeholder_metadata(path: Path) -> MetadataResult:
     )
 
 
-def read_xmp_sidecar_metadata(path: Path) -> XmpMetadata | None:
+def read_xmp_sidecar_metadata(path: Path, *, review_root: Path | None = None) -> XmpMetadata | None:
     sidecar = xmp_sidecar_path(path)
     if sidecar is None:
         return None
     try:
-        tree = ET.parse(sidecar)
-    except (OSError, ET.ParseError, ValueError, OverflowError):
+        with open_regular_file(sidecar, max_bytes=MAX_XMP_BYTES, root=review_root) as handle:
+            identity = file_identity(handle)
+            fields = stream_xmp_metadata(BoundedReader(handle, max_bytes=MAX_XMP_BYTES))
+            verify_file_unchanged(handle, identity)
+    except (OSError, expat.ExpatError, ValueError, OverflowError):
         return XmpMetadata(warnings=("xmp_metadata_unreadable",))
-    fields: dict[str, str] = {}
-    for element in tree.iter():
-        for key, value in element.attrib.items():
-            fields[local_name(key)] = value
-        if element.text and element.text.strip():
-            fields.setdefault(local_name(element.tag), element.text.strip())
     width_value = fields.get("PixelXDimension") or fields.get("ImageWidth") or fields.get("ExifImageWidth")
     height_value = fields.get("PixelYDimension") or fields.get("ImageLength") or fields.get("ExifImageHeight")
     focal_value = fields.get("FocalLength")
@@ -169,11 +177,112 @@ def read_xmp_sidecar_metadata(path: Path) -> XmpMetadata | None:
     return XmpMetadata(width=width, height=height, focal_length_mm=focal_length, warnings=warnings)
 
 
+@dataclass
+class _XmpFrame:
+    name: str
+    text_chunks: list[str] | None
+    text_length: int = 0
+
+
+class _XmpStreamCollector:
+    """Collect only needed XMP fields without constructing an XML tree."""
+
+    def __init__(self) -> None:
+        self.fields: dict[str, str] = {}
+        self.stack: list[_XmpFrame] = []
+        self.elements = 0
+        self.depth = 0
+        self.character_data = 0
+
+    def start_element(self, name: str, attributes: dict[str, str]) -> None:
+        self.elements += 1
+        self.depth += 1
+        # These checks run in Expat's start callback, before any element node
+        # is allocated or retained by application code.
+        if self.elements > MAX_XMP_ELEMENTS:
+            raise ValueError("XMP element limit exceeded")
+        if self.depth > MAX_XMP_DEPTH:
+            raise ValueError("XMP nesting depth exceeded")
+        for key, value in attributes.items():
+            field_name = local_name(key)
+            if field_name in XMP_METADATA_FIELDS:
+                self._store_attribute(field_name, value)
+        field_name = local_name(name)
+        self.stack.append(_XmpFrame(field_name, [] if field_name in XMP_METADATA_FIELDS else None))
+
+    def end_element(self, name: str) -> None:
+        if not self.stack:
+            raise ValueError("XMP end element has no matching start")
+        frame = self.stack.pop()
+        if frame.name != local_name(name):
+            raise ValueError("XMP element nesting is invalid")
+        if frame.text_chunks:
+            value = "".join(frame.text_chunks).strip()
+            if value:
+                self.fields.setdefault(frame.name, value)
+        self.depth -= 1
+
+    def character_data_handler(self, data: str) -> None:
+        self.character_data += len(data)
+        if self.character_data > MAX_XMP_CHARACTER_DATA:
+            raise ValueError("XMP character data limit exceeded")
+        if not self.stack or self.stack[-1].text_chunks is None:
+            return
+        frame = self.stack[-1]
+        if frame.text_length + len(data) > MAX_XMP_TEXT_VALUE_CHARS:
+            raise ValueError("XMP text value limit exceeded")
+        frame.text_chunks.append(data)
+        frame.text_length += len(data)
+
+    def _store_attribute(self, field_name: str, value: str) -> None:
+        if len(value) > MAX_XMP_TEXT_VALUE_CHARS:
+            raise ValueError("XMP attribute value limit exceeded")
+        self.fields[field_name] = value
+
+
+def stream_xmp_metadata(reader: BoundedReader) -> dict[str, str]:
+    """Parse a bounded XMP stream with Expat callbacks, never ElementTree."""
+
+    collector = _XmpStreamCollector()
+    parser = expat.ParserCreate(namespace_separator="}")
+    parser.StartElementHandler = collector.start_element
+    parser.EndElementHandler = collector.end_element
+    parser.CharacterDataHandler = collector.character_data_handler
+    parser.StartDoctypeDeclHandler = _reject_xmp_dtd
+    parser.EntityDeclHandler = _reject_xmp_entity
+    parser.UnparsedEntityDeclHandler = _reject_xmp_entity
+    parser.ExternalEntityRefHandler = _reject_xmp_external_entity
+    parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+    while chunk := reader.read(MAX_XMP_PARSE_CHUNK_BYTES):
+        parser.Parse(chunk, False)
+    parser.Parse(b"", True)
+    if collector.depth != 0 or collector.stack:
+        raise ValueError("XMP element nesting is incomplete")
+    return collector.fields
+
+
+def _reject_xmp_dtd(*_: object) -> None:
+    raise ValueError("XMP DTDs are not supported")
+
+
+def _reject_xmp_entity(*_: object) -> None:
+    raise ValueError("XMP entities are not supported")
+
+
+def _reject_xmp_external_entity(*_: object) -> int:
+    raise ValueError("External XMP entities are not supported")
+
+
 def xmp_sidecar_path(path: Path) -> Path | None:
     for suffix in (".xmp", ".XMP"):
         candidate = path.with_suffix(suffix)
-        if candidate.is_file():
-            return candidate
+        # lstat only establishes presence; the descriptor open above performs
+        # the authoritative no-follow check before any metadata is read.
+        try:
+            candidate.lstat()
+        except FileNotFoundError:
+            continue
+        return candidate
     return None
 
 
@@ -259,15 +368,18 @@ def infer_iso(filename: str) -> int | None:
     return int(match.group("iso"))
 
 
-def image_dimensions(path: Path) -> tuple[int | None, int | None]:
+def image_dimensions(path: Path, *, handle: BinaryIO | None = None) -> tuple[int | None, int | None]:
     suffix = path.suffix.lower()
     try:
-        with path.open("rb") as handle:
-            if suffix == ".png":
-                return png_dimensions(handle.read(32))
-            if suffix in {".jpg", ".jpeg"}:
-                metadata = parse_jpeg_metadata(handle)
-                return metadata.width, metadata.height
+        if handle is None:
+            with open_regular_file(path, max_bytes=MAX_FILE_BYTES) as owned_handle:
+                return image_dimensions(path, handle=owned_handle)
+        handle.seek(0)
+        if suffix == ".png":
+            return png_dimensions(handle.read(32))
+        if suffix in {".jpg", ".jpeg"}:
+            metadata = parse_jpeg_metadata(handle)
+            return metadata.width, metadata.height
     except OSError:
         return None, None
     return None, None
@@ -277,7 +389,7 @@ def exif_focal_length(path: Path) -> int | None:
     if path.suffix.lower() not in {".jpg", ".jpeg"}:
         return None
     try:
-        with path.open("rb") as handle:
+        with open_regular_file(path, max_bytes=MAX_FILE_BYTES) as handle:
             payload = parse_jpeg_metadata(handle).exif_payload
     except OSError:
         return None
@@ -288,7 +400,7 @@ def exif_focal_length(path: Path) -> int | None:
 
 def read_jpeg_metadata(path: Path) -> JpegMetadata:
     try:
-        with path.open("rb") as handle:
+        with open_regular_file(path, max_bytes=MAX_FILE_BYTES) as handle:
             return parse_jpeg_metadata(handle)
     except OSError:
         return JpegMetadata(warnings=("jpeg_metadata_unreadable",))

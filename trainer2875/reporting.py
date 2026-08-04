@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import html
 import json
-import os
-import tempfile
+import math
 from pathlib import Path
 from typing import Any
 
 from .models import CoachingReport, REPORT_SCHEMA_VERSION, SUPPORTED_IMAGE_EXTENSIONS
+from .safeio import MAX_JSON_BYTES, MAX_REVIEW_FILES, absolute_path, load_json_object, prepare_output_target
 
 COMPONENT_LABELS = {
     "volume": "Volume (supported files)",
@@ -23,8 +23,7 @@ def report_to_json(report: CoachingReport) -> str:
 
 
 def load_report_json(path: str | Path) -> dict[str, Any]:
-    with Path(path).expanduser().open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
+    data = load_json_object(path, max_bytes=MAX_JSON_BYTES)
     validate_report_data(data)
     return data
 
@@ -249,35 +248,25 @@ def duplicate_items(groups: list[list[str]]) -> str:
 
 
 def write_text_output(path: str | Path, content: str) -> None:
-    output_path = validate_text_output_path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=output_path.parent,
-            prefix=f".{output_path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temp_path = Path(handle.name)
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        temp_path.replace(output_path)
-    except Exception:
-        if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
-        raise
+    output_path = absolute_path(path)
+    if output_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+        raise ValueError(f"Refusing to write report output to an image-like path: {output_path}")
+    # Validate the leaf through the retained parent descriptor, then keep that
+    # same descriptor through exclusive temporary creation and atomic publish.
+    with prepare_output_target(output_path) as target:
+        if target.leaf_is_symlink():
+            raise ValueError(f"Refusing to write report output through a symlink: {output_path}")
+        target.write_text(content)
 
 
 def validate_text_output_path(path: str | Path) -> Path:
-    output_path = Path(path).expanduser()
+    output_path = absolute_path(path)
     if output_path.is_symlink():
         raise ValueError(f"Refusing to write report output through a symlink: {output_path}")
     for parent in output_path.parents:
-        if parent.exists() and parent.is_symlink():
+        # macOS intentionally exposes /var and /tmp as system aliases. All
+        # other supplied symlinked parents are rejected before descriptor I/O.
+        if parent.exists() and parent.is_symlink() and parent not in {Path("/var"), Path("/tmp"), Path("/etc")}:
             raise ValueError(f"Refusing to write report output through a symlinked parent: {parent}")
     if output_path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
         raise ValueError(f"Refusing to write report output to an image-like path: {output_path}")
@@ -287,15 +276,15 @@ def validate_text_output_path(path: str | Path) -> Path:
 def validate_distinct_output_paths(*paths: str | Path) -> None:
     for path in paths:
         validate_text_output_path(path)
-    resolved = [Path(path).expanduser().resolve() for path in paths]
+    resolved = [absolute_path(path) for path in paths]
     if len(set(resolved)) != len(resolved):
         raise ValueError("Refusing to write multiple report outputs to the same path.")
 
 
 def validate_report_regeneration_paths(json_report: str | Path, output: str | Path) -> None:
     validate_text_output_path(output)
-    input_path = Path(json_report).expanduser().resolve()
-    output_path = Path(output).expanduser().resolve()
+    input_path = absolute_path(json_report)
+    output_path = absolute_path(output)
     if input_path == output_path:
         raise ValueError("Refusing to overwrite the JSON report while regenerating HTML.")
 
@@ -303,7 +292,7 @@ def validate_report_regeneration_paths(json_report: str | Path, output: str | Pa
 def validate_review_output_locations(review_folder: str | Path, *outputs: str | Path) -> None:
     review_root = Path(review_folder).expanduser().resolve()
     for output in outputs:
-        output_path = Path(output).expanduser().resolve()
+        output_path = absolute_path(output).resolve()
         if output_path == review_root or review_root in output_path.parents:
             raise ValueError("Refusing to write review outputs inside the reviewed folder.")
 
@@ -330,6 +319,7 @@ def validate_report_data(data: Any) -> None:
     validate_mission_data(data["mission"], "mission")
     validate_analysis_data(data["analysis"])
     validate_scorecard_data(data["scorecard"])
+    validate_string_list(data["recommendations"], "Report JSON recommendations")
     validate_mission_data(data["next_mission"], "next_mission")
 
 
@@ -351,6 +341,14 @@ def validate_mission_data(mission: dict[str, Any], label: str) -> None:
             raise ValueError(f"Report JSON {label} is missing required field: {key}")
         if not isinstance(mission[key], expected_type):
             raise ValueError(f"Report JSON {label} field `{key}` has the wrong type.")
+    if len(mission["title"]) > 1_000 or len(mission["objective"]) > 10_000:
+        raise ValueError(f"Report JSON {label} text is too long.")
+    if expected is full_mission_required:
+        if not 0 <= mission["minimum_shots"] <= 100_000:
+            raise ValueError(f"Report JSON {label} minimum_shots is out of range.")
+        validate_string_list(mission["target_focal_lengths"], f"Report JSON {label} target_focal_lengths", allow_int=True)
+        validate_string_list(mission["constraints"], f"Report JSON {label} constraints")
+        validate_finite_mapping(mission["scoring_weights"], f"Report JSON {label} scoring_weights")
 
 
 def validate_analysis_data(analysis: dict[str, Any]) -> None:
@@ -360,6 +358,8 @@ def validate_analysis_data(analysis: dict[str, Any]) -> None:
         raise ValueError("Report JSON analysis must include an unsupported_files list.")
 
     photos = analysis["photos"]
+    if len(photos) > MAX_REVIEW_FILES or len(analysis["unsupported_files"]) > MAX_REVIEW_FILES:
+        raise ValueError("Report JSON file lists exceed the supported limit.")
     full_photo_keys = {
         "extension",
         "bytes_size",
@@ -399,6 +399,8 @@ def validate_analysis_data(analysis: dict[str, Any]) -> None:
             raise ValueError(f"Report JSON analysis photo {index} is missing required field: relative_path")
         if not isinstance(photo["relative_path"], str):
             raise ValueError(f"Report JSON analysis photo {index} field `relative_path` has the wrong type.")
+        validate_photo_data(photo, index)
+    validate_string_list(analysis["unsupported_files"], "Report JSON analysis unsupported_files")
 
 
 def validate_scorecard_data(scorecard: dict[str, Any]) -> None:
@@ -413,6 +415,17 @@ def validate_scorecard_data(scorecard: dict[str, Any]) -> None:
             raise ValueError(f"Report JSON scorecard is missing required field: {key}")
         if not isinstance(scorecard[key], expected_type):
             raise ValueError(f"Report JSON scorecard field `{key}` has the wrong type.")
+    if not finite_number(scorecard["total_score"]):
+        raise ValueError("Report JSON scorecard total_score must be finite.")
+    validate_finite_mapping(scorecard["component_scores"], "Report JSON scorecard component_scores")
+    validate_string_list(scorecard["observations"], "Report JSON scorecard observations")
+    validate_string_list(scorecard["missing_focal_lengths"] if "missing_focal_lengths" in scorecard else [], "Report JSON scorecard missing_focal_lengths", allow_int=True)
+    if len(scorecard["duplicate_groups"]) > MAX_REVIEW_FILES:
+        raise ValueError("Report JSON duplicate_groups exceeds the supported limit.")
+    for index, group in enumerate(scorecard["duplicate_groups"]):
+        if not isinstance(group, list):
+            raise ValueError(f"Report JSON duplicate group {index} must be a list.")
+        validate_string_list(group, f"Report JSON duplicate group {index}")
 
     if "missing_focal_lengths" in scorecard or set(COMPONENT_LABELS).issubset(scorecard["component_scores"]):
         if "missing_focal_lengths" not in scorecard:
@@ -430,3 +443,46 @@ def has_any_key(data: dict[str, Any], keys: dict[str, Any] | set[str]) -> bool:
 
 def escape(value: str) -> str:
     return html.escape(value, quote=True)
+
+
+def finite_number(value: Any) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (OverflowError, TypeError):
+        return False
+
+
+def validate_finite_mapping(values: dict[Any, Any], label: str) -> None:
+    if len(values) > 100:
+        raise ValueError(f"{label} has too many entries.")
+    for key, value in values.items():
+        if not isinstance(key, str) or len(key) > 200 or not finite_number(value):
+            raise ValueError(f"{label} must contain string keys and finite numeric values.")
+
+
+def validate_string_list(values: list[Any], label: str, *, allow_int: bool = False) -> None:
+    if len(values) > MAX_REVIEW_FILES:
+        raise ValueError(f"{label} exceeds the supported limit.")
+    for value in values:
+        if isinstance(value, str) and len(value) <= 10_000:
+            continue
+        if allow_int and isinstance(value, int) and not isinstance(value, bool):
+            continue
+        raise ValueError(f"{label} must contain bounded {'strings or integers' if allow_int else 'strings'}.")
+
+
+def validate_photo_data(photo: dict[str, Any], index: int) -> None:
+    string_fields = ("relative_path", "extension", "sha256", "orientation")
+    for field in string_fields:
+        if field in photo and (not isinstance(photo[field], str) or len(photo[field]) > 10_000):
+            raise ValueError(f"Report JSON analysis photo {index} field `{field}` has the wrong type.")
+    for field in ("bytes_size", "width", "height", "focal_length_mm", "megapixels"):
+        if field in photo and photo[field] is not None and not finite_number(photo[field]):
+            raise ValueError(f"Report JSON analysis photo {index} field `{field}` must be finite.")
+    for field in ("warnings",):
+        if field in photo:
+            if not isinstance(photo[field], list):
+                raise ValueError(f"Report JSON analysis photo {index} field `{field}` has the wrong type.")
+            validate_string_list(photo[field], f"Report JSON analysis photo {index} {field}")

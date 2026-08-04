@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any
 
-from .field_review import build_adobe_mcp_handoff, recommended_set
+from .field_review import MAX_CLIP_PERCENT, MAX_REVIEW_CONTRAST, MAX_REVIEW_FOCAL_LENGTH_MM, build_adobe_mcp_handoff, recommended_set, require_range
 from .reporting import validate_review_output_locations, write_text_output
+from .safeio import MAX_JSON_BYTES, MAX_REVIEW_FILES, load_json_object
 
 FIELD_REVIEW_SUMMARY_SCHEMA_VERSION = "0.1"
 
@@ -41,8 +43,7 @@ def run_field_review(args: Any) -> int:
 
 
 def load_field_review_json(path: str | Path) -> dict[str, Any]:
-    with Path(path).expanduser().open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
+    data = load_json_object(path, max_bytes=MAX_JSON_BYTES)
     validate_field_review_data(data)
     return data
 
@@ -54,6 +55,84 @@ def validate_field_review_data(data: Any) -> None:
         raise ValueError("Field review JSON is missing required field: items")
     if not isinstance(data["items"], list):
         raise ValueError("Field review JSON field `items` must be a list.")
+    if len(data["items"]) > MAX_REVIEW_FILES:
+        raise ValueError(f"Field review JSON exceeds the {MAX_REVIEW_FILES} item limit.")
+    seen_shots: set[int] = set()
+    seen_sources: set[str] = set()
+    for index, item in enumerate(data["items"]):
+        validate_field_review_item(item, index)
+        shot = field_review_shot(item)
+        source = field_review_source(item)
+        if shot in seen_shots:
+            raise ValueError(f"Field review JSON item {index} duplicates trainer shot {shot}.")
+        if source and source in seen_sources:
+            raise ValueError(f"Field review JSON item {index} duplicates source identity: {source}")
+        seen_shots.add(shot)
+        if source:
+            seen_sources.add(source)
+
+
+def validate_field_review_item(item: Any, index: int) -> None:
+    if not isinstance(item, dict):
+        raise ValueError(f"Field review JSON item {index} must be an object.")
+    shot = field_review_shot(item)
+    if not 1 <= shot <= 1_000_000:
+        raise ValueError(f"Field review JSON item {index} trainer shot is out of range.")
+    for key in ("role", "status", "source", "path", "filename"):
+        if key in item and item[key] is not None and (not isinstance(item[key], str) or len(item[key]) > 10_000):
+            raise ValueError(f"Field review JSON item {index} field `{key}` must be a bounded string.")
+    for key in ("warnings", "notes"):
+        value = item.get(key, [])
+        if not isinstance(value, list) or len(value) > 1_000 or any(not isinstance(note, str) or len(note) > 10_000 for note in value):
+            raise ValueError(f"Field review JSON item {index} field `{key}` must be a bounded string list.")
+    for key in ("metadata", "image_analysis"):
+        value = item.get(key, {})
+        if not isinstance(value, dict) or len(value) > 100:
+            raise ValueError(f"Field review JSON item {index} field `{key}` must be an object with at most 100 fields.")
+        validate_nested_field_values(value, f"Field review JSON item {index} {key}")
+    validate_ranking_ranges(item, index)
+    if "plan" in item and (not isinstance(item["plan"], dict) or len(item["plan"]) > 20):
+        raise ValueError(f"Field review JSON item {index} plan must be an object.")
+
+
+def validate_nested_field_values(values: dict[str, Any], label: str) -> None:
+    for key, value in values.items():
+        if not isinstance(key, str) or len(key) > 200:
+            raise ValueError(f"{label} has an invalid field name.")
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(f"{label} has a non-finite numeric value.")
+        if isinstance(value, (dict, list)):
+            raise ValueError(f"{label} must not contain nested collections.")
+        if value is not None and not isinstance(value, (str, int, float, bool)):
+            raise ValueError(f"{label} has an unsupported field value.")
+        if isinstance(value, str) and len(value) > 10_000:
+            raise ValueError(f"{label} has an overlong string value.")
+
+
+def validate_ranking_ranges(item: dict[str, Any], index: int) -> None:
+    metadata = item.get("metadata") or {}
+    stats = item.get("image_analysis") or {}
+    for key in ("focal_length", "focal_length_mm"):
+        if metadata.get(key) is not None:
+            require_range(metadata[key], 1, MAX_REVIEW_FOCAL_LENGTH_MM, f"Field review JSON item {index} {key}")
+    if stats.get("contrast") is not None:
+        require_range(stats["contrast"], 0, MAX_REVIEW_CONTRAST, f"Field review JSON item {index} contrast")
+    for key in ("highlight_clip_pct", "shadow_clip_pct"):
+        if stats.get(key) is not None:
+            require_range(stats[key], 0, MAX_CLIP_PERCENT, f"Field review JSON item {index} {key}")
+
+
+def field_review_shot(item: dict[str, Any]) -> int:
+    plan = item.get("plan")
+    raw = plan.get("shot") if isinstance(plan, dict) and plan.get("shot") is not None else item.get("trainer_shot")
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise ValueError("Field review item trainer shot must be an integer.")
+    return raw
+
+
+def field_review_source(item: dict[str, Any]) -> str:
+    source = item.get("source") or item.get("path") or ""
+    return os.path.abspath(os.path.expanduser(source)) if isinstance(source, str) else ""
 
 
 def build_field_review_summary(

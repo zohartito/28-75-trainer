@@ -102,6 +102,46 @@ class FieldReviewCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("items", result.stderr)
 
+    def test_cli_rejects_duplicate_identity_and_non_finite_nested_score(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            source = work / "DSC00001.ARW"
+            source.write_bytes(b"original")
+            duplicate = candidate(1, "wide", source)
+            duplicate["source"] = str(work / "other.ARW")
+            review_path = work / "duplicates.json"
+            review_path.write_text(json.dumps({"items": [candidate(1, "wide", source), duplicate]}), encoding="utf-8")
+            result = run_cli("field-review", str(review_path))
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("duplicates trainer shot", result.stderr)
+
+            malformed = candidate(2, "wide", source)
+            malformed["image_analysis"]["contrast"] = float("inf")
+            review_path.write_text(json.dumps({"items": [malformed]}), encoding="utf-8")
+            result = run_cli("field-review", str(review_path))
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("invalid", result.stderr)
+
+    def test_cli_rejects_out_of_range_and_huge_json_ranking_values(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            source = work / "DSC00001.ARW"
+            source.write_bytes(b"original")
+            review_path = work / "invalid-ranges.json"
+            malformed = candidate(1, "wide", source)
+            malformed["image_analysis"]["highlight_clip_pct"] = -1
+            review_path.write_text(json.dumps({"items": [malformed]}), encoding="utf-8")
+            result = run_cli("field-review", str(review_path))
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("highlight_clip_pct", result.stderr)
+
+            malformed = candidate(1, "wide", source)
+            malformed["image_analysis"]["contrast"] = 10**1000
+            review_path.write_text(json.dumps({"items": [malformed]}), encoding="utf-8")
+            result = run_cli("field-review", str(review_path))
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("finite", result.stderr)
+
 
 def candidate(shot: int, role: str, source: Path) -> dict:
     return {

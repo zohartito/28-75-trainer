@@ -12,10 +12,13 @@ from trainer2875.metadata import (
     MAX_FOCAL_LENGTH_MM,
     MAX_JPEG_METADATA_BYTES,
     MAX_JPEG_MARKERS,
+    MAX_XMP_PARSE_CHUNK_BYTES,
     parse_jpeg_metadata,
     parse_xmp_focal_value,
     read_metadata,
+    read_xmp_sidecar_metadata,
 )
+from trainer2875.safeio import MAX_XMP_BYTES
 
 
 EXIF_JPEG_FIXTURE_PATH = Path("fixtures") / "real-exif-jpeg" / "sony-a7c2-75mm-exif.jpg"
@@ -140,6 +143,84 @@ class MetadataIntakeTests(unittest.TestCase):
             by_name = {photo.path.stem: photo for photo in analysis.photos}
             self.assertIn("xmp_metadata_unreadable", by_name["malformed"].warnings)
             self.assertEqual(by_name["valid"].focal_length_mm, 50)
+
+    def test_growing_xmp_sidecar_cannot_stream_past_byte_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            raw = root / "growing.ARW"
+            raw.write_bytes(b"raw placeholder")
+            sidecar = raw.with_suffix(".xmp")
+            sidecar.write_bytes(b"<x>")
+            with sidecar.open("rb") as handle:
+                with patch(
+                    "trainer2875.metadata.open_regular_file",
+                    return_value=GrowingXmpHandle(handle, sidecar),
+                ):
+                    metadata = read_xmp_sidecar_metadata(raw)
+
+            self.assertEqual(metadata.warnings, ("xmp_metadata_unreadable",))
+
+    def test_excessive_xmp_start_nesting_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = Path(tmp) / "nested.ARW"
+            raw.write_bytes(b"raw placeholder")
+            sidecar = raw.with_suffix(".xmp")
+            sidecar.write_bytes(b"<x>" * 5_000 + b"</x>" * 5_000)
+            with sidecar.open("rb") as handle:
+                counted = CountingXmpHandle(handle)
+                with patch("trainer2875.metadata.open_regular_file", return_value=counted):
+                    metadata = read_xmp_sidecar_metadata(raw)
+
+            self.assertEqual(metadata.warnings, ("xmp_metadata_unreadable",))
+            # The depth callback raises at 129 before a second source chunk or
+            # an ElementTree-style retained document can be built.
+            self.assertEqual(counted.read_calls, 1)
+            self.assertEqual(counted.bytes_read, MAX_XMP_PARSE_CHUNK_BYTES)
+
+    def test_xmp_dtd_and_entities_are_rejected_before_expansion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            raw = Path(tmp) / "entity.ARW"
+            raw.write_bytes(b"raw placeholder")
+            raw.with_suffix(".xmp").write_text(
+                '<!DOCTYPE x [<!ENTITY expanded "not metadata">]><x>&expanded;</x>', encoding="utf-8"
+            )
+
+            metadata = read_xmp_sidecar_metadata(raw)
+
+            self.assertEqual(metadata.warnings, ("xmp_metadata_unreadable",))
+
+    def test_symlinked_xmp_is_not_followed_outside_the_review_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            raw = root / "frame.ARW"
+            raw.write_bytes(b"raw placeholder")
+            external = root.parent / "external-sidecar.xmp"
+            write_xmp_sidecar(external.with_suffix(".ARW"), FocalLength="75/1")
+            external = external.with_suffix(".ARW").with_suffix(".xmp")
+            try:
+                raw.with_suffix(".xmp").symlink_to(external)
+            except OSError as exc:
+                self.skipTest(f"symlinks unavailable on this platform: {exc}")
+
+            analysis = analyze_folder(root)
+
+            self.assertIsNone(analysis.photos[0].focal_length_mm)
+            self.assertIn("xmp_metadata_unreadable", analysis.photos[0].warnings)
+
+    def test_oversized_recognized_file_is_isolated_to_one_photo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            limited = root / "limited_75mm.jpg"
+            limited.touch()
+            with limited.open("r+b") as handle:
+                handle.truncate(513 * 1024 * 1024)
+            valid = root / "valid_28mm.jpg"
+            write_jpeg_with_exif_focal_length(valid, focal_length=28, width=6000, height=4000)
+
+            analysis = analyze_folder(root)
+            by_name = {photo.path.stem: photo for photo in analysis.photos}
+            self.assertIn("file_unreadable_or_limit_exceeded", by_name["limited_75mm"].warnings)
+            self.assertEqual(by_name["valid_28mm"].focal_length_mm, 28)
 
     def test_xmp_focal_normalization_rejects_zero_and_out_of_range_integers(self) -> None:
         for value in ("0.4", "0.5", "1/999999"):
@@ -297,6 +378,54 @@ class CountingBytesIO(io.BytesIO):
         self.read_calls += 1
         self.read_sizes.append(size)
         return super().read(size)
+
+
+class GrowingXmpHandle:
+    """Append after the descriptor has passed its initial size validation."""
+
+    def __init__(self, wrapped, path: Path) -> None:
+        self.wrapped = wrapped
+        self.path = path
+        self.grown = False
+
+    def __enter__(self) -> "GrowingXmpHandle":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def fileno(self) -> int:
+        return self.wrapped.fileno()
+
+    def read(self, size: int = -1) -> bytes:
+        data = self.wrapped.read(size)
+        if not self.grown:
+            self.grown = True
+            with self.path.open("ab") as writer:
+                writer.write(b"x" * (MAX_XMP_BYTES + 1))
+        return data
+
+
+class CountingXmpHandle:
+    def __init__(self, wrapped) -> None:
+        self.wrapped = wrapped
+        self.read_calls = 0
+        self.bytes_read = 0
+
+    def __enter__(self) -> "CountingXmpHandle":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def fileno(self) -> int:
+        return self.wrapped.fileno()
+
+    def read(self, size: int = -1) -> bytes:
+        self.read_calls += 1
+        data = self.wrapped.read(size)
+        self.bytes_read += len(data)
+        return data
 
 
 if __name__ == "__main__":

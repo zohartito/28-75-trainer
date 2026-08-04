@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
 ROLE_TARGETS = {"wide": 3, "massing": 3, "facade": 3, "tight": 3}
+MAX_REVIEW_FOCAL_LENGTH_MM = 2_000
+MAX_REVIEW_CONTRAST = 255
+MAX_CLIP_PERCENT = 100
 
 HANDOFF_ROLES = {
     "wide": "wide_context",
@@ -84,6 +88,7 @@ ROLE_EDIT_PROFILES = {
 def classify_role(focal_length: float | int | None) -> str:
     if focal_length is None:
         return "unknown"
+    require_range(focal_length, 1, MAX_REVIEW_FOCAL_LENGTH_MM, "focal length")
     if focal_length <= 32:
         return "wide"
     if focal_length <= 42:
@@ -116,24 +121,41 @@ def image_quality_score(item: dict[str, Any]) -> float:
         score -= 2.0
 
     contrast = stats.get("contrast")
-    if isinstance(contrast, (int, float)):
+    if contrast is not None:
+        require_range(contrast, 0, MAX_REVIEW_CONTRAST, "contrast")
         if 120 <= contrast <= 220:
             score += 2.0
         elif contrast > 240:
             score -= 1.0
 
     highlight_clip = stats.get("highlight_clip_pct")
-    if isinstance(highlight_clip, (int, float)):
+    if highlight_clip is not None:
+        require_range(highlight_clip, 0, MAX_CLIP_PERCENT, "highlight clip percentage")
         score -= min(highlight_clip, 10.0) * 0.5
 
     shadow_clip = stats.get("shadow_clip_pct")
-    if isinstance(shadow_clip, (int, float)):
+    if shadow_clip is not None:
+        require_range(shadow_clip, 0, MAX_CLIP_PERCENT, "shadow clip percentage")
         score -= min(shadow_clip, 15.0) * 0.3
 
     if metadata.get("orientation") == "vertical":
         score += 1.0
 
     return round(score, 3)
+
+
+def require_range(value: Any, minimum: float, maximum: float, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{label} must be a finite number")
+    try:
+        numeric = float(value)
+    except (OverflowError, TypeError) as exc:
+        raise ValueError(f"{label} must be a finite number") from exc
+    if not math.isfinite(numeric):
+        raise ValueError(f"{label} must be a finite number")
+    if not minimum <= numeric <= maximum:
+        raise ValueError(f"{label} must be between {minimum} and {maximum}")
+    return numeric
 
 
 def pick_spread(role_items: list[dict[str, Any]], target: int) -> list[dict[str, Any]]:

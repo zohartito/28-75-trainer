@@ -5,6 +5,8 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+from .reporting import write_text_output
+
 
 def build_contact_sheet_html(
     reviewed: list[dict[str, Any]],
@@ -63,7 +65,7 @@ def write_contact_sheet_html(
 ) -> Path:
     path = Path(output_path)
     html = build_contact_sheet_html(reviewed, recommended_shots=recommended_shots, title=title)
-    path.write_text(html, encoding="utf-8")
+    write_text_output(path, html)
     return path
 
 

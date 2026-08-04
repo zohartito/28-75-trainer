@@ -9,6 +9,7 @@ import unittest
 import zlib
 from pathlib import Path
 
+from scripts.prepare_field_test_review import source_name_sort_key
 from trainer2875.analysis import analyze_folder, exif_focal_length, infer_aperture, infer_focal_length, infer_iso
 from trainer2875.coaching import build_coaching_report
 from trainer2875.mission import DEFAULT_MISSION, mission_for_focus, mission_to_markdown
@@ -206,8 +207,8 @@ class PipelineTests(unittest.TestCase):
                 "objective": "Use <wide> framing.",
             },
             "scorecard": {
-                "total_score": "<img src=x onerror=alert(1)>",
-                "component_scores": {"volume": "<b>bad</b>"},
+                "total_score": 75,
+                "component_scores": {"volume": 75},
                 "observations": ["Observed <unsafe> value."],
                 "duplicate_groups": [["a<script>.jpg", "b.png"]],
             },
@@ -233,9 +234,8 @@ class PipelineTests(unittest.TestCase):
         }
         html = report_to_html(data)
         self.assertNotIn("<script>", html)
-        self.assertNotIn("<img src=x", html)
         self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", html)
-        self.assertIn("Score &lt;img src=x onerror=alert(1)&gt;/100", html)
+        self.assertIn("Score 75/100", html)
         self.assertIn("frame_&lt;bad&gt;.png", html)
         self.assertIn("Coach Read", html)
         self.assertIn("This report does not judge sharpness", html)
@@ -472,6 +472,87 @@ class PipelineTests(unittest.TestCase):
                     "model_75mm_04.png",
                 ],
             )
+
+    def test_prepare_field_test_review_sorts_validated_source_names_before_focal_assignment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            source = work / "originals"
+            destination = work / "review-copy"
+            source.mkdir()
+            # Deliberately create z first: directory enumeration must not
+            # determine which image receives the first focal assignment.
+            write_png(source / "z.png", 30, 10)
+            write_png(source / "a.png", 10, 30)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/prepare_field_test_review.py",
+                    str(source),
+                    str(destination),
+                    "--prefix",
+                    "model",
+                    "--focals",
+                    "28,75",
+                    "--shots-per-focal",
+                    "1",
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((destination / "model_28mm_01.png").read_bytes(), (source / "a.png").read_bytes())
+            self.assertEqual((destination / "model_75mm_02.png").read_bytes(), (source / "z.png").read_bytes())
+
+    def test_prepare_field_test_review_name_order_breaks_casefold_ties(self) -> None:
+        # Model reverse scandir output for casefold-equal names. The secondary
+        # original-name key makes the outcome a total deterministic order.
+        scanned_in_reverse_order = ["a.png", "A.png"]
+
+        self.assertEqual(sorted(scanned_in_reverse_order, key=source_name_sort_key), ["A.png", "a.png"])
+
+    def test_prepare_field_test_review_rejects_unsafe_prefix_and_source_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "originals"
+            source.mkdir()
+            write_png(source / "frame.png", 20, 10)
+            destination = root / "review-copy"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/prepare_field_test_review.py",
+                    str(source),
+                    str(destination),
+                    "--prefix",
+                    "../escape",
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("path component", result.stderr)
+            self.assertFalse(destination.exists())
+
+            linked = source / "linked.png"
+            try:
+                linked.symlink_to(source / "frame.png")
+            except OSError as exc:
+                self.skipTest(f"symlinks unavailable on this platform: {exc}")
+            result = subprocess.run(
+                [sys.executable, "scripts/prepare_field_test_review.py", str(source), str(destination)],
+                cwd=Path(__file__).resolve().parents[1],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("symlinked source image", result.stderr)
 
     def run_cli(self, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(

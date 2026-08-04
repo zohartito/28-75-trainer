@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -32,7 +33,7 @@ def lightroom_plan_to_markdown(plan_source: dict[str, Any], *, source_json_path:
         "",
     ]
     if source:
-        lines.append(f"Source JSON: `{source}`")
+        lines.append(f"Source JSON: {markdown_code(source)}")
     else:
         lines.append("Source JSON: not supplied")
     lines.extend(
@@ -59,12 +60,12 @@ def lightroom_plan_to_csv(plan_source: dict[str, Any]) -> str:
     for photo in recommended_photos(plan_source):
         writer.writerow(
             {
-                "photo_id": photo_id(photo),
+                "photo_id": spreadsheet_cell(photo_id(photo)),
                 "trainer_shot": shot_number(photo),
-                "filename": filename(photo),
-                "role": role(photo),
-                "setting_keys": ";".join(setting_keys(photo)),
-                "status": status(photo),
+                "filename": spreadsheet_cell(filename(photo)),
+                "role": spreadsheet_cell(role(photo)),
+                "setting_keys": spreadsheet_cell(";".join(setting_keys(photo))),
+                "status": spreadsheet_cell(status(photo)),
             }
         )
     return output.getvalue()
@@ -102,20 +103,20 @@ def photo_markdown(photo: dict[str, Any]) -> list[str]:
     intent = photo.get("edit_intent") or {}
     keys = setting_keys(photo)
     lines = [
-        f"### Shot {shot_number(photo)} - {filename(photo)}",
+        f"### Shot {shot_number(photo)} - {markdown_text(filename(photo))}",
         "",
-        f"- Status: {status(photo)}",
-        f"- Photo ID: `{photo_id(photo)}`",
+        f"- Status: {markdown_text(status(photo))}",
+        f"- Photo ID: {markdown_code(photo_id(photo))}",
     ]
     beginner = intent.get("beginner_readable_explanation")
     if beginner:
-        lines.append(f"- Beginner read: {beginner}")
+        lines.append(f"- Beginner read: {markdown_text(beginner)}")
     fixes = intent.get("what_needs_fixing") or []
     if fixes:
         lines.append("- Steps:")
-        lines.extend(f"  - {fix}" for fix in fixes)
+        lines.extend(f"  - {markdown_text(fix)}" for fix in fixes)
     if keys:
-        lines.append(f"- Setting keys: {', '.join(f'`{key}`' for key in keys)}")
+        lines.append(f"- Setting keys: {', '.join(markdown_code(key) for key in keys)}")
     else:
         lines.append("- Setting keys: none supplied")
     return lines
@@ -160,7 +161,7 @@ def role(photo: dict[str, Any]) -> str:
 
 
 def role_label(role_name: str) -> str:
-    return role_name.replace("_", " ").title()
+    return markdown_text(role_name.replace("_", " ").title())
 
 
 def nested_value(data: dict[str, Any], keys: tuple[str, ...]) -> Any:
@@ -170,3 +171,42 @@ def nested_value(data: dict[str, Any], keys: tuple[str, ...]) -> Any:
             return None
         current = current.get(key)
     return current
+
+
+def markdown_text(value: Any) -> str:
+    """Render imported values as Markdown text, never markup or a link target."""
+
+    text = normalize_markdown_inline(value)
+    escaped = "".join("\\" + char if char in "`*_{}[]<>()#+!|" else char for char in text)
+    # Escaping alone does not neutralize every block opener (notably '-' and
+    # ordered-list markers).  Preserve imported text while ensuring it cannot
+    # become the first token of a block when rendered in a field position.
+    leading = escaped.lstrip(" \t")
+    if leading.startswith(("-", "+")) or re.match(r"\d+[.)][ \t]", leading):
+        prefix_length = len(escaped) - len(leading)
+        escaped = escaped[:prefix_length] + "\\" + escaped[prefix_length:]
+    return escaped
+
+
+def markdown_code(value: Any) -> str:
+    text = normalize_markdown_inline(value)
+    longest_tick_run = max((len(match.group()) for match in re.finditer(r"`+", text)), default=0)
+    # A code-span delimiter must be longer than any delimiter-like run in the
+    # data. Padding avoids CommonMark's edge-space normalization ambiguity.
+    fence = "`" * (longest_tick_run + 1)
+    if "`" in text or text.startswith((" ", "`")) or text.endswith((" ", "`")):
+        return f"{fence} {text} {fence}"
+    return f"{fence}{text}{fence}"
+
+
+def normalize_markdown_inline(value: Any) -> str:
+    """Flatten every Unicode line separator before placing imported text inline."""
+
+    return re.sub(r"[\r\n\v\f\x1c-\x1e\x85\u2028\u2029]+", " ", str(value)).replace("\\", "\\\\")
+
+
+def spreadsheet_cell(value: Any) -> str:
+    """Prevent a value imported by a spreadsheet from becoming a formula."""
+
+    text = str(value)
+    return "'" + text if text.lstrip(" \t\r\n").startswith(("=", "+", "-", "@")) else text
