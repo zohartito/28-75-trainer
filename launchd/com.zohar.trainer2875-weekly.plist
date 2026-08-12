@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.zohar.trainer2875-weekly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/zohartito/projects/28-75-trainer/scripts/weekly_progress.py</string>
+  </array>
+  <!-- Weekly: Monday 08:15 local -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>15</integer>
+  </dict>
+  <key>RunAtLoad</key><false/>
+  <key>WorkingDirectory</key><string>/Users/zohartito/projects/28-75-trainer</string>
+  <key>StandardOutPath</key><string>/Users/zohartito/projects/28-75-trainer/state/weekly-launchd.log</string>
+  <key>StandardErrorPath</key><string>/Users/zohartito/projects/28-75-trainer/state/weekly-launchd.log</string>
+</dict>
+</plist>
+<!-- NOT loaded by the agent. Install manually when the loop has earned trust:
+       mkdir -p /Users/zohartito/projects/28-75-trainer/state
+       cp launchd/com.zohar.trainer2875-weekly.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist
+     Set the practice root first (else it scans ~/Pictures/28-75-practice):
+       launchctl setenv TRAINER2875_PRACTICE_ROOT /path/to/practice
+     Long-term this weekly cron belongs on the always-on PC. -->

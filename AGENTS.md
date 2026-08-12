@@ -13,8 +13,20 @@ Run an agent until it verifies its own output, then commit:
 python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "pytest -q" --cwd . --max-iters 5 --commit
 ```
 
+## Loops (this repo)
+- **SCHED weekly — practice-shot scoring** (`scripts/weekly_progress.py`): scans a
+  practice root for shoot folders, scores each NEW/CHANGED shoot with
+  `trainer2875.scoring`, appends `state/progress-log.jsonl` + `state/PROGRESS.md`,
+  and prints a run summary (JSON, `scripts/weekly-progress.schema.json`). Idempotent
+  via a per-shoot SHA-256 signature ledger; hard cap `--max-shoots` (default 20);
+  `--dry-run` writes nothing. Practice root = `$TRAINER2875_PRACTICE_ROOT` or
+  `~/Pictures/28-75-practice`. Durable learnings append to `.claude/LEARNINGS.md`.
+  - Schedule (write-only plist, not loaded): `launchd/com.zohar.trainer2875-weekly.plist`.
+    Load: `cp launchd/com.zohar.trainer2875-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`
+  - Verify: `pytest -q tests/test_weekly_progress.py`
+
 ## Layout
-`.github/`, `docs/`, `scripts/`, `tests/`, `trainer2875/`
+`.github/`, `docs/`, `launchd/`, `scripts/`, `state/` (runtime, gitignored), `tests/`, `trainer2875/`
 
 ## Conventions
 - Follow CONVENTIONS.md (if present) and the global ~/.claude/CLAUDE.md.

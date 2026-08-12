@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "28-75 Trainer weekly-progress run summary",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "practice_root",
+    "dry_run",
+    "new_count",
+    "skipped_count",
+    "run_mean_score",
+    "prev_run_mean_score",
+    "delta",
+    "scored"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "practice_root": { "type": "string" },
+    "dry_run": { "type": "boolean" },
+    "new_count": { "type": "integer", "minimum": 0 },
+    "skipped_count": { "type": "integer", "minimum": 0 },
+    "run_mean_score": { "type": "integer" },
+    "prev_run_mean_score": { "type": "integer" },
+    "delta": { "type": "integer" },
+    "run_weakest_component": { "type": "string" },
+    "note": { "type": "string" },
+    "scored": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["shoot", "mission_id", "total_score", "component_scores", "photo_count"],
+        "properties": {
+          "schema_version": { "type": "string" },
+          "ts": { "type": "string", "format": "date-time" },
+          "shoot": { "type": "string" },
+          "shoot_path": { "type": "string" },
+          "mission_id": { "type": "string" },
+          "focus": { "type": ["string", "null"] },
+          "photo_count": { "type": "integer", "minimum": 0 },
+          "total_score": { "type": "integer" },
+          "component_scores": { "type": "object" },
+          "missing_focal_lengths": { "type": "array", "items": { "type": "integer" } },
+          "next_mission_id": { "type": "string" }
+        }
+      }
+    }
+  }
+}
