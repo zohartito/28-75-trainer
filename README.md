@@ -56,6 +56,8 @@ Generated JSON reports include a schema version and are validated before HTML is
 
 ## Build, Test, Run
 
+Requires Python 3.10 or newer and no third-party packages. Clone the repository and run these commands from its root folder:
+
 ```powershell
 python -m unittest discover -s tests
 python -m trainer2875 mission
