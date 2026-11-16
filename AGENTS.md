@@ -27,6 +27,7 @@ python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "python -m py
   `~/Pictures/28-75-practice`. Durable learnings append to `.claude/LEARNINGS.md`.
   With no new observations, run mean and delta are JSON null; the previous observed mean is retained.
   Focus hints use explicit `28mm`/`75mm` tokens or wide/tele/compression names, not date digits.
+  Weekly state/log writes use no-follow descriptors; imported names are escaped in Markdown.
   - Schedule (write-only plist, not loaded): `launchd/com.zohar.trainer2875-weekly.plist`.
     Load: `cp launchd/com.zohar.trainer2875-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`
   - Verify: `python -m pytest -q tests/test_weekly_progress.py`

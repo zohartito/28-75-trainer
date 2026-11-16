@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from scripts import weekly_progress
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -95,3 +97,49 @@ def test_dates_do_not_select_a_focal_mission(tmp_path):
         entries.append(weekly_progress.score_shoot(folder))
     assert entries[0]["mission_id"] == entries[1]["mission_id"]
     assert entries[0]["total_score"] == entries[1]["total_score"]
+
+
+def isolate_outputs(tmp_path, monkeypatch):
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setattr(weekly_progress, "STATE_DIR", state)
+    for attribute, name in (("LEDGER_PATH", "ledger.json"), ("LOG_PATH", "log.jsonl"), ("PROGRESS_MD", "PROGRESS.md"), ("LEARNINGS_PATH", "LEARNINGS.md")):
+        monkeypatch.setattr(weekly_progress, attribute, state / name)
+    return state
+
+
+@pytest.mark.parametrize("attribute", ["LEDGER_PATH", "LOG_PATH", "PROGRESS_MD", "LEARNINGS_PATH"])
+def test_weekly_outputs_refuse_symlinks(tmp_path, monkeypatch, attribute):
+    isolate_outputs(tmp_path, monkeypatch)
+    root = tmp_path / "practice"
+    shoot = root / "walk"
+    shoot.mkdir(parents=True)
+    (shoot / "frame.jpg").write_bytes(b"photo")
+    outside = tmp_path / "outside.txt"
+    original = '{"schema_version":"1.0","shoots":{},"runs":[]}'
+    outside.write_text(original)
+    getattr(weekly_progress, attribute).symlink_to(outside)
+
+    with pytest.raises((ValueError, OSError)):
+        weekly_progress.main(["--root", str(root)])
+    assert outside.read_text() == original
+
+
+def test_weekly_markdown_escapes_imported_names(tmp_path, monkeypatch, capsys):
+    isolate_outputs(tmp_path, monkeypatch)
+    root = tmp_path / "<script> | [root](x)"
+    shoot = root / "<img src=x onerror=alert(1)> | pipe\n# injected"
+    shoot.mkdir(parents=True)
+    (shoot / "frame.jpg").write_bytes(b"photo")
+    weekly_progress.LEARNINGS_PATH.write_text("# Learnings\n")
+    assert weekly_progress.main(["--root", str(root)]) == 0
+    capsys.readouterr()
+    markdown = weekly_progress.PROGRESS_MD.read_text()
+    assert "<img" not in markdown
+    assert "&lt;img" in markdown
+    assert "\\| pipe" in markdown
+    assert "\n# injected" not in markdown
+    assert weekly_progress.main(["--root", str(root)]) == 0
+    learning = weekly_progress.LEARNINGS_PATH.read_text()
+    assert "<script>" not in learning
+    assert "[root](x)" not in learning
