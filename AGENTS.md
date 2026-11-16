@@ -7,6 +7,7 @@
 - Supported platform: macOS with Python 3.10+; Windows/Linux safe I/O is unsupported.
 - Tests: install `requirements-test.txt`, then run `python -m pytest -q` from the repo root.
 - Lint:  `(none detected)`
+- Optional wheel build: follow `docs/build.md` with the hashed `requirements-build.txt` tooling lock.
 - Simulator: `python scripts/run_simulator.py <empty-folder>`; nonempty destinations
   are refused unless `--keep` explicitly reuses generated files without deleting the folder.
 
