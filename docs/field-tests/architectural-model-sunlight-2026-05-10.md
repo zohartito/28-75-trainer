@@ -127,7 +127,7 @@ Recommended flow:
 5. In Bridge, use thumbnails to confirm you have 12+ images and they are in shot order.
 6. Do not delete from camera/card yet.
 7. Do not rename originals in Bridge for this first test.
-8. Run `scripts/prepare_field_test_review.py` to make safe review copies. The trainer can now read JPEG EXIF focal length, but tagged copies keep the first field test easy to inspect.
+8. For raster images, run `scripts/prepare_field_test_review.py` to make safe review copies. RAW files and XMP sidecars are not copied; use the direct RAW review path below instead. The trainer can now read JPEG EXIF focal length, but tagged copies keep the first field test easy to inspect.
 9. Run 28-75 Trainer on the review-copy folder.
 10. Optional: after the trainer report, open the same folder in Lightroom Classic and try Assisted Culling as a comparison, not as the source of truth.
 
@@ -164,7 +164,7 @@ Copy your camera files into:
 ~/Pictures/28-75-field-tests/2026-05-10-arch-model-sunlight/originals
 ```
 
-Then make trainer-friendly review copies:
+For a source containing raster images (`.jpg`, `.jpeg`, `.png`, `.webp`, `.tif`, `.tiff`), make trainer-friendly review copies. This helper reads only the source folder itself, skips RAW and XMP files, and fails if no supported raster files are present:
 
 ```bash
 python3 scripts/prepare_field_test_review.py \
@@ -173,6 +173,27 @@ python3 scripts/prepare_field_test_review.py \
 ```
 
 If `python3` is not available, try `python`.
+
+The helper copies files into blocks:
+
+- first 3 images -> `28mm`;
+- next 3 images -> `35mm`;
+- next 3 images -> `50mm`;
+- next 3 images -> `75mm`.
+
+If there are more than 12 images, it repeats that block pattern. That is why the shot order matters.
+
+If the camera files already have JPEG EXIF focal length, the trainer can identify wide/medium/tele without the filename tags. The tags are still useful for this beginner test because they let you visually confirm the intended shot order in Finder, Bridge, and the report.
+
+### RAW and paired XMP files
+
+For RAW shoots, keep each RAW file with its same-stem `.xmp` or `.XMP` sidecar and review that folder directly; the analyzer reads originals without modifying them. RAW review is metadata-only: pixels are not decoded, and dimensions/focal length come from paired XMP when available. Use a report path outside the photo folder:
+
+```bash
+python3 -m trainer2875 review \
+  ~/Pictures/28-75-field-tests/2026-05-10-arch-model-sunlight/originals \
+  --out reports/arch-model-raw.html --json-out reports/arch-model-raw.json
+```
 
 ### Platform requirement
 

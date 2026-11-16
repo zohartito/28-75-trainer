@@ -74,7 +74,7 @@ The simulator creates synthetic shoot folders for balanced practice, missing met
 
 ## Real Field Test
 
-For the first real field test, use `docs/field-tests/architectural-model-sunlight-2026-05-10.md`. It walks through photographing an architectural model outside, keeping MacBook originals in `~/Pictures/28-75-field-tests/.../originals`, creating trainer-friendly focal-length review copies in ignored `field-shoots/`, and generating the report. The field test requires at least 12 photos, but more is fine.
+For the first real field test, use `docs/field-tests/architectural-model-sunlight-2026-05-10.md`. It walks through photographing an architectural model outside, keeping MacBook originals in `~/Pictures/28-75-field-tests/.../originals`, creating trainer-friendly focal-length review copies in ignored `field-shoots/`, and generating the report. The copy helper accepts raster images only and skips RAW/XMP; for RAW shoots, review the original folder with paired XMP directly as described in the guide. The field test requires at least 12 photos, but more is fine.
 
 For the post-report editing pass, use `docs/workflows/lightroom-classic-fix-pass.md`. If using a Lightroom/Codex assistant, use `docs/prompts/lightroom-ai-agent-prompt.md`.
 
