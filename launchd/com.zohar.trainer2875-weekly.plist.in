@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.zohar.trainer2875-weekly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>GENERATE_INTERPRETER</string>
+    <string>GENERATE_WEEKLY_SCRIPT</string>
+  </array>
+  <!-- Weekly: Monday 08:15 local -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>15</integer>
+  </dict>
+  <key>RunAtLoad</key><false/>
+  <key>WorkingDirectory</key><string>GENERATE_CLONE</string>
+  <key>StandardOutPath</key><string>GENERATE_LOG_PATH</string>
+  <key>StandardErrorPath</key><string>GENERATE_LOG_PATH</string>
+</dict>
+</plist>
+<!-- Template only. Run scripts/generate_weekly_plist.py; do not load this file. -->

@@ -28,8 +28,12 @@ python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "python -m py
   With no new observations, run mean and delta are JSON null; the previous observed mean is retained.
   Focus hints use explicit `28mm`/`75mm` tokens or wide/tele/compression names, not date digits.
   Weekly state/log writes use no-follow descriptors; imported names are escaped in Markdown.
-  - Schedule (write-only plist, not loaded): `launchd/com.zohar.trainer2875-weekly.plist`.
-    Load: `cp launchd/com.zohar.trainer2875-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`
+  - Schedule template: `launchd/com.zohar.trainer2875-weekly.plist.in` (do not load directly).
+    Generate: `python scripts/generate_weekly_plist.py ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`.
+    Uses this clone and the running interpreter; override with `--repo /path/to/clone --python /path/to/python`.
+    Creates the clone's `state/` log directory; does not load a job. After reviewing paths, load manually:
+    `launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`.
+    Set `TRAINER2875_PRACTICE_ROOT` in the job environment if not using the default practice root.
   - Verify: `python -m pytest -q tests/test_weekly_progress.py`
 
 ## Layout
