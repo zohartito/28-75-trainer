@@ -6,7 +6,7 @@
 
 1. Get a mission:
 
-   ```powershell
+   ```bash
    python -m trainer2875 mission --out reports/mission.md
    ```
 
@@ -14,13 +14,13 @@
 
 3. Review the folder:
 
-   ```powershell
-   python -m trainer2875 review C:\path\to\shoot --out reports/review.html --json-out reports/review.json
+   ```bash
+   python -m trainer2875 review /path/to/shoot --out reports/review.html --json-out reports/review.json
    ```
 
 4. Regenerate a report from JSON if needed:
 
-   ```powershell
+   ```bash
    python -m trainer2875 report reports/review.json --out reports/review-copy.html
    ```
 
@@ -30,7 +30,7 @@
 |---|---|---|
 | Shot volume | Supported image count | Confirms enough repetitions for practice |
 | Focal-length coverage | JPEG EXIF focal length, or filename tags such as `28mm` or `75mm` | Checks whether the whole 28-75mm range was practiced |
-| Orientation variety | Image dimensions | Encourages landscape/portrait variation |
+| Orientation variety | Display dimensions (JPEG EXIF Orientation applied) | Encourages landscape/portrait variation |
 | Exact duplicates | SHA-256 file hash | Flags selection discipline issues |
 | Metadata completeness | Dimension and focal-length parse rate | Shows where stronger EXIF tooling should land next |
 
@@ -56,10 +56,11 @@ Generated JSON reports include a schema version and are validated before HTML is
 
 ## Build, Test, Run
 
-Requires Python 3.10 or newer and no third-party packages. Clone the repository and run these commands from its root folder:
+Requires **macOS** and Python 3.10 or newer; runtime uses no third-party packages. The filesystem safeguards require POSIX descriptor-relative, no-follow operations and macOS system-path aliases. Windows and Linux are not supported by this version. Clone the repository and run these commands from its root folder:
 
-```powershell
-python -m unittest discover -s tests
+```bash
+python -m pip install -r requirements-test.txt
+python -m pytest -q
 python -m trainer2875 mission
 python scripts/create_sample_shoot.py reports/sample-shoot
 python -m trainer2875 review reports/sample-shoot --out reports/sample.html --json-out reports/sample.json
@@ -67,11 +68,15 @@ python -m trainer2875 report reports/sample.json --out reports/sample-copy.html
 python scripts/run_simulator.py reports/simulator
 ```
 
-The simulator creates synthetic shoot folders for balanced practice, missing metadata, exact duplicates, unsupported-only folders, RAW metadata sidecars, corrupt images, and nested uppercase filenames. It fails if the expected safety or scoring behavior regresses.
+The full test suite uses pytest, including the weekly-progress tests that stdlib unittest discovery does not collect. Use `python -m pytest` from the repository root so the source checkout is importable.
+
+For an optional wheel build, follow [the isolated build workflow](docs/build.md), which pins and hash-checks build tooling. Running from source does not require building a wheel.
+
+The simulator creates synthetic shoot folders for balanced practice, missing metadata, exact duplicates, unsupported-only folders, RAW metadata sidecars, corrupt images, and nested uppercase filenames. It checks selected scoring and metadata outcomes. Filesystem safety boundaries are covered separately by `tests/test_safeio_hardening.py` and `tests/test_reporting_hardening.py`; the simulator does not verify source hashes or output-boundary invariants.
 
 ## Real Field Test
 
-For the first real field test, use `docs/field-tests/architectural-model-sunlight-2026-05-10.md`. It walks through photographing an architectural model outside, keeping MacBook originals in `~/Pictures/28-75-field-tests/.../originals`, creating trainer-friendly focal-length review copies in ignored `field-shoots/`, and generating the report. The field test requires at least 12 photos, but more is fine.
+For the first real field test, use `docs/field-tests/architectural-model-sunlight-2026-05-10.md`. It walks through photographing an architectural model outside, keeping MacBook originals in `~/Pictures/28-75-field-tests/.../originals`, creating trainer-friendly focal-length review copies in ignored `field-shoots/`, and generating the report. The copy helper accepts raster images only and skips RAW/XMP; for RAW shoots, review the original folder with paired XMP directly as described in the guide. The field test requires at least 12 photos, but more is fine.
 
 For the post-report editing pass, use `docs/workflows/lightroom-classic-fix-pass.md`. If using a Lightroom/Codex assistant, use `docs/prompts/lightroom-ai-agent-prompt.md`.
 

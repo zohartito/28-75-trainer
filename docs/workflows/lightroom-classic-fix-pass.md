@@ -72,15 +72,24 @@ The next professional-grade version should generate a Lightroom fix list from th
 
 ## AI Agent Handoff
 
-The current bridge is an AI-agent prompt plus generated plan files:
+The core `review` command writes HTML and analysis JSON; it does not generate per-photo Lightroom plans. To create a plan, first supply an `items` field-review JSON following [the field-review input contract](../field-review-cli.md). Core analysis JSON is a different format and cannot be passed directly to `field-review`.
 
-```text
-docs/prompts/lightroom-ai-agent-prompt.md
-reports/lightroom/lightroom-plan.json
-reports/lightroom/lightroom-plan.csv
-reports/lightroom/lightroom-plan.lua
+From the repository root, with that input saved as `reports/field-review.json`:
+
+```bash
+python -m trainer2875 field-review reports/field-review.json --adobe-mcp-out reports/lightroom/handoff.json
+python - <<'PYTHON'
+from trainer2875.safeio import load_json_object
+from trainer2875.reporting import write_text_output
+from trainer2875.lightroom_plan import lightroom_plan_to_markdown, lightroom_plan_to_csv
+
+source = "reports/lightroom/handoff.json"
+handoff = load_json_object(source)
+write_text_output("reports/lightroom/lightroom-plan.md", lightroom_plan_to_markdown(handoff, source_json_path=source))
+write_text_output("reports/lightroom/lightroom-plan.csv", lightroom_plan_to_csv(handoff))
+PYTHON
 ```
 
-Use the trainer JSON and the Lightroom plan files as the source of truth. The AI agent should convert them into exact Lightroom Classic steps for a beginner, while keeping all edits non-destructive.
+This creates handoff JSON and Markdown/CSV fix sheets. There is no Lua exporter or separate `lightroom-plan.json` generator. The library exporters return text; the example explicitly writes it using the report output safeguards. Keep all outputs outside photo folders.
 
-For now, keep it manual and safe: trainer first, Lightroom second, exports separate.
+Use [the AI-agent prompt](../prompts/lightroom-ai-agent-prompt.md) with the files you actually generated. Selection and planned setting keys come from the handoff; these artifacts do not prove edits were executed. Lightroom steps and exports remain manual or belong to a separate execution layer.

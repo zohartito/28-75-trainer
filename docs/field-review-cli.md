@@ -6,10 +6,12 @@ This is a bridge command. It does not run Lightroom, scan original photo folders
 
 ## Usage
 
-```powershell
-python -m trainer2875 field-review .\reports\field-review.json `
-  --slug sunlight-model `
-  --adobe-mcp-out .\reports\adobe-mcp-handoff.json
+Run from the repository root on macOS with Python 3.10+ (see the README platform requirements).
+
+```bash
+python -m trainer2875 field-review reports/field-review.json \
+  --slug sunlight-model \
+  --adobe-mcp-out reports/adobe-mcp-handoff.json
 ```
 
 The command prints a JSON summary to stdout:
@@ -39,7 +41,7 @@ The input must be a JSON object with an `items` list. Each item should use the s
       "plan": {"shot": 1},
       "role": "wide",
       "status": "candidate",
-      "source": "C:/shoot/DSC00001.ARW",
+      "source": "/path/to/shoot/DSC00001.ARW",
       "metadata": {
         "filename": "DSC00001.ARW",
         "focal_length": 28,

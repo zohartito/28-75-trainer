@@ -23,8 +23,10 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -35,6 +37,9 @@ from trainer2875.analysis import analyze_folder
 from trainer2875.coaching import build_coaching_report
 from trainer2875.mission import mission_for_focus
 from trainer2875.models import SUPPORTED_IMAGE_EXTENSIONS
+from trainer2875.lightroom_plan import markdown_text
+from trainer2875.reporting import write_text_output
+from trainer2875.safeio import load_json_object, prepare_output_target
 
 SCHEMA_VERSION = "1.0"
 DEFAULT_PRACTICE_ROOT = "~/Pictures/28-75-practice"
@@ -51,9 +56,9 @@ def _now() -> str:
 
 def infer_focus(folder_name: str) -> str | None:
     name = folder_name.lower()
-    if "75" in name or "tele" in name or "compression" in name:
+    if re.search(r"(?<![a-z0-9])75mm(?![a-z0-9])", name) or "tele" in name or "compression" in name:
         return "tele"
-    if "28" in name or "wide" in name:
+    if re.search(r"(?<![a-z0-9])28mm(?![a-z0-9])", name) or "wide" in name:
         return "wide"
     return None
 
@@ -71,10 +76,10 @@ def find_shoot_folders(root: Path) -> list[Path]:
 
 
 def shoot_signature(folder: Path) -> str:
-    """Content signature over image files (path, size, mtime) — cheap change detector."""
+    """Signature over images and XMP sidecars (path, size, mtime)."""
     parts: list[str] = []
     for f in sorted(folder.rglob("*")):
-        if f.is_file() and f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+        if f.is_file() and f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS | {".xmp"}:
             stat = f.stat()
             parts.append(f"{f.relative_to(folder)}|{stat.st_size}|{stat.st_mtime_ns}")
     digest = hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
@@ -82,8 +87,8 @@ def shoot_signature(folder: Path) -> str:
 
 
 def load_ledger() -> dict:
-    if LEDGER_PATH.exists():
-        return json.loads(LEDGER_PATH.read_text(encoding="utf-8"))
+    if LEDGER_PATH.exists() or LEDGER_PATH.is_symlink():
+        return load_json_object(LEDGER_PATH)
     return {"schema_version": SCHEMA_VERSION, "shoots": {}, "runs": []}
 
 
@@ -110,47 +115,46 @@ def score_shoot(folder: Path) -> dict:
 
 def append_progress_md(entries: list[dict]) -> None:
     header = "# 28-75 Trainer — Progress Log\n\n| date | shoot | mission | photos | score | weakest | next mission |\n|------|-------|---------|--------|-------|---------|--------------|\n"
-    if not PROGRESS_MD.exists():
-        PROGRESS_MD.write_text(header, encoding="utf-8")
     rows = []
     for e in entries:
         weakest = min(e["component_scores"], key=e["component_scores"].get) if e["component_scores"] else "-"
-        rows.append(
-            f"| {e['ts'][:10]} | {e['shoot']} | {e['mission_id']} | "
-            f"{e['photo_count']} | {e['total_score']} | {weakest} | {e['next_mission_id']} |\n"
-        )
-    with PROGRESS_MD.open("a", encoding="utf-8") as fh:
-        fh.writelines(rows)
+        cells = (e['ts'][:10], e['shoot'], e['mission_id'], e['photo_count'], e['total_score'], weakest, e['next_mission_id'])
+        rows.append("| " + " | ".join(markdown_value(cell) for cell in cells) + " |\n")
+    with prepare_output_target(PROGRESS_MD) as target:
+        target.append_text("".join(rows), initial=header)
+
+
+def markdown_value(value: object) -> str:
+    return markdown_text(escape(str(value)))
 
 
 def append_log(entries: list[dict]) -> None:
-    with LOG_PATH.open("a", encoding="utf-8") as fh:
-        for e in entries:
-            fh.write(json.dumps(e, sort_keys=True) + "\n")
+    with prepare_output_target(LOG_PATH) as target:
+        target.append_text("".join(json.dumps(e, sort_keys=True) + "\n" for e in entries))
 
 
 def append_learning(summary: dict) -> None:
-    if not LEARNINGS_PATH.exists():
+    if not LEARNINGS_PATH.exists() and not LEARNINGS_PATH.is_symlink():
         return
     scored = summary["scored"]
     if not scored:
-        line = f"- {summary['generated_at'][:10]} weekly-progress: no new shoots found under {summary['practice_root']}.\n"
+        line = f"- {summary['generated_at'][:10]} weekly-progress: no new shoots found under {markdown_value(summary['practice_root'])}.\n"
     else:
         delta = summary["delta"]
         arrow = "flat" if delta == 0 else ("up" if delta > 0 else "down")
-        weak = summary.get("run_weakest_component", "-")
+        weak = markdown_value(summary.get("run_weakest_component", "-"))
         line = (
             f"- {summary['generated_at'][:10]} weekly-progress: scored {len(scored)} shoot(s), "
             f"mean {summary['run_mean_score']} ({arrow} {delta:+} vs prev). "
             f"Fleet-weakest component: {weak}. Idempotent ledger skipped {summary['skipped_count']}.\n"
         )
-    with LEARNINGS_PATH.open("a", encoding="utf-8") as fh:
-        fh.write(line)
+    with prepare_output_target(LEARNINGS_PATH) as target:
+        target.append_text(line)
 
 
 def build_summary(scored: list[dict], skipped: int, root: Path, ledger: dict, dry_run: bool) -> dict:
     scores = [e["total_score"] for e in scored]
-    run_mean = round(sum(scores) / len(scores)) if scores else 0
+    run_mean = round(sum(scores) / len(scores)) if scores else None
     prev_runs = ledger.get("runs", [])
     prev_mean = prev_runs[-1]["run_mean_score"] if prev_runs else run_mean
     # Aggregate weakest component across this run's shoots.
@@ -168,7 +172,7 @@ def build_summary(scored: list[dict], skipped: int, root: Path, ledger: dict, dr
         "skipped_count": skipped,
         "run_mean_score": run_mean,
         "prev_run_mean_score": prev_mean,
-        "delta": run_mean - prev_mean,
+        "delta": run_mean - prev_mean if run_mean is not None and prev_mean is not None else None,
         "run_weakest_component": run_weakest,
         "scored": scored,
     }
@@ -227,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
             {"ts": summary["generated_at"], "run_mean_score": summary["run_mean_score"], "new_count": summary["new_count"]}
         )
         ledger["runs"] = ledger["runs"][-52:]  # keep ~1 year of weekly runs
-        LEDGER_PATH.write_text(json.dumps(ledger, indent=2, sort_keys=True), encoding="utf-8")
+        write_text_output(LEDGER_PATH, json.dumps(ledger, indent=2, sort_keys=True))
 
     if not args.dry_run:
         append_learning(summary)

@@ -25,6 +25,29 @@ EXIF_JPEG_FIXTURE_PATH = Path("fixtures") / "real-exif-jpeg" / "sony-a7c2-75mm-e
 
 
 class MetadataIntakeTests(unittest.TestCase):
+    def test_jpeg_exif_orientation_controls_display_dimensions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for endian in ("<", ">"):
+                for orientation in range(1, 10):
+                    tiff = (
+                        (b"II" if endian == "<" else b"MM")
+                        + struct.pack(endian + "HIH", 42, 8, 1)
+                        + struct.pack(endian + "HHIHH", 0x0112, 3, 1, orientation, 0)
+                        + struct.pack(endian + "I", 0)
+                    )
+                    payload = b"Exif\x00\x00" + tiff
+                    app1 = b"\xff\xe1" + struct.pack(">H", len(payload) + 2) + payload
+                    jpeg = make_jpeg_with_sof(width=6000, height=4000)
+                    (root / f"{endian == '<'}_{orientation}.jpg").write_bytes(jpeg[:2] + app1 + jpeg[2:])
+
+            for photo in analyze_folder(root).photos:
+                orientation = int(photo.path.stem.split("_")[-1])
+                rotated = orientation in {5, 6, 7, 8}
+                with self.subTest(photo=photo.path.name):
+                    self.assertEqual((photo.width, photo.height), (4000, 6000) if rotated else (6000, 4000))
+                    self.assertEqual(photo.orientation, "portrait" if rotated else "landscape")
+
     def test_jpeg_exif_fixture_reports_field_sources(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

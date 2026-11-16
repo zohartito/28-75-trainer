@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import struct
 import subprocess
 import sys
@@ -19,8 +18,8 @@ def main() -> int:
     output = Path(args.output).expanduser()
     shoots = output / "shoots"
     reports = output / "reports"
-    if output.exists() and not args.keep:
-        shutil.rmtree(output)
+    if output.exists() and (not output.is_dir() or (not args.keep and any(output.iterdir()))):
+        parser.error("Refusing a nonempty or non-directory destination; use a fresh folder or --keep to reuse simulator output.")
     shoots.mkdir(parents=True, exist_ok=True)
     reports.mkdir(parents=True, exist_ok=True)
 
