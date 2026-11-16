@@ -5,7 +5,7 @@
 
 ## How to verify a change
 - Supported platform: macOS with Python 3.10+; Windows/Linux safe I/O is unsupported.
-- Tests: `pytest -q`
+- Tests: install `requirements-test.txt`, then run `python -m pytest -q` from the repo root.
 - Lint:  `(none detected)`
 - Simulator: `python scripts/run_simulator.py <empty-folder>`; nonempty destinations
   are refused unless `--keep` explicitly reuses generated files without deleting the folder.
@@ -13,7 +13,7 @@
 ## Self-improving loop (close the loop)
 Run an agent until it verifies its own output, then commit:
 ```
-python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "pytest -q" --cwd . --max-iters 5 --commit
+python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "python -m pytest -q" --cwd . --max-iters 5 --commit
 ```
 
 ## Loops (this repo)
@@ -26,7 +26,7 @@ python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "pytest -q" -
   `~/Pictures/28-75-practice`. Durable learnings append to `.claude/LEARNINGS.md`.
   - Schedule (write-only plist, not loaded): `launchd/com.zohar.trainer2875-weekly.plist`.
     Load: `cp launchd/com.zohar.trainer2875-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`
-  - Verify: `pytest -q tests/test_weekly_progress.py`
+  - Verify: `python -m pytest -q tests/test_weekly_progress.py`
 
 ## Layout
 `.github/`, `docs/`, `launchd/`, `scripts/`, `state/` (runtime, gitignored), `tests/`, `trainer2875/`

@@ -59,13 +59,16 @@ Generated JSON reports include a schema version and are validated before HTML is
 Requires **macOS** and Python 3.10 or newer; runtime uses no third-party packages. The filesystem safeguards require POSIX descriptor-relative, no-follow operations and macOS system-path aliases. Windows and Linux are not supported by this version. Clone the repository and run these commands from its root folder:
 
 ```bash
-python -m unittest discover -s tests
+python -m pip install -r requirements-test.txt
+python -m pytest -q
 python -m trainer2875 mission
 python scripts/create_sample_shoot.py reports/sample-shoot
 python -m trainer2875 review reports/sample-shoot --out reports/sample.html --json-out reports/sample.json
 python -m trainer2875 report reports/sample.json --out reports/sample-copy.html
 python scripts/run_simulator.py reports/simulator
 ```
+
+The full test suite uses pytest, including the weekly-progress tests that stdlib unittest discovery does not collect. Use `python -m pytest` from the repository root so the source checkout is importable.
 
 The simulator creates synthetic shoot folders for balanced practice, missing metadata, exact duplicates, unsupported-only folders, RAW metadata sidecars, corrupt images, and nested uppercase filenames. It fails if the expected safety or scoring behavior regresses.
 
