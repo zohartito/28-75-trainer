@@ -12,6 +12,20 @@ from trainer2875.contact_sheet import (
 
 
 class ContactSheetTests(unittest.TestCase):
+    def test_explicit_empty_selection_has_no_selected_items(self) -> None:
+        item = dict(reviewed_item(1, "wide"), recommended=True)
+        self.assertEqual(visual_selection_sanity([item])["selected_count"], 1)
+        sanity = visual_selection_sanity([item], recommended_shots=[])
+        self.assertEqual(sanity["selected_count"], 0)
+        self.assertEqual(sanity["selected_shots"], [])
+
+    def test_explicit_empty_selection_has_no_recommended_html_rows(self) -> None:
+        item = dict(reviewed_item(1, "wide"), recommended=True)
+        self.assertIn("<td>Recommended</td>", build_contact_sheet_html([item]))
+        html = build_contact_sheet_html([item], recommended_shots=[])
+        self.assertNotIn("<td>Recommended</td>", html)
+        self.assertIn("<td>Alternate</td>", html)
+
     def test_build_contact_sheet_html_includes_review_fields_and_escapes_values(self) -> None:
         reviewed = [
             reviewed_item(
