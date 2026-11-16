@@ -6,6 +6,8 @@
 ## How to verify a change
 - Tests: `pytest -q`
 - Lint:  `(none detected)`
+- Simulator: `python scripts/run_simulator.py <empty-folder>`; nonempty destinations
+  are refused unless `--keep` explicitly reuses generated files without deleting the folder.
 
 ## Self-improving loop (close the loop)
 Run an agent until it verifies its own output, then commit:
