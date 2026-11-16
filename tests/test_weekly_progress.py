@@ -63,3 +63,20 @@ def test_sidecar_change_rescores_shoot(tmp_path, monkeypatch, capsys):
     assert second["scored"][0]["missing_focal_lengths"] == [28, 35, 50]
     assert weekly_progress.main(["--root", str(root)]) == 0
     assert json.loads(capsys.readouterr().out)["skipped_count"] == 1
+
+
+def test_no_observations_has_no_mean_or_delta(tmp_path):
+    ledger = {"runs": [{"run_mean_score": 48, "new_count": 1}]}
+    summary = weekly_progress.build_summary([], 1, tmp_path, ledger, False)
+    assert summary["new_count"] == 0
+    assert summary["run_mean_score"] is None
+    assert summary["prev_run_mean_score"] == 48
+    assert summary["delta"] is None
+    empty = weekly_progress.build_summary([], 0, tmp_path, {}, True)
+    assert empty["run_mean_score"] is None
+    assert empty["prev_run_mean_score"] is None
+    assert empty["delta"] is None
+    scored = [{"total_score": 50, "component_scores": {"volume": 50}}]
+    observed = weekly_progress.build_summary(scored, 0, tmp_path, ledger, False)
+    assert observed["run_mean_score"] == 50
+    assert observed["delta"] == 2

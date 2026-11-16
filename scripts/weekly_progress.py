@@ -150,7 +150,7 @@ def append_learning(summary: dict) -> None:
 
 def build_summary(scored: list[dict], skipped: int, root: Path, ledger: dict, dry_run: bool) -> dict:
     scores = [e["total_score"] for e in scored]
-    run_mean = round(sum(scores) / len(scores)) if scores else 0
+    run_mean = round(sum(scores) / len(scores)) if scores else None
     prev_runs = ledger.get("runs", [])
     prev_mean = prev_runs[-1]["run_mean_score"] if prev_runs else run_mean
     # Aggregate weakest component across this run's shoots.
@@ -168,7 +168,7 @@ def build_summary(scored: list[dict], skipped: int, root: Path, ledger: dict, dr
         "skipped_count": skipped,
         "run_mean_score": run_mean,
         "prev_run_mean_score": prev_mean,
-        "delta": run_mean - prev_mean,
+        "delta": run_mean - prev_mean if run_mean is not None and prev_mean is not None else None,
         "run_weakest_component": run_weakest,
         "scored": scored,
     }

@@ -25,6 +25,7 @@ python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "python -m py
   hard cap `--max-shoots` (default 20);
   `--dry-run` writes nothing. Practice root = `$TRAINER2875_PRACTICE_ROOT` or
   `~/Pictures/28-75-practice`. Durable learnings append to `.claude/LEARNINGS.md`.
+  With no new observations, run mean and delta are JSON null; the previous observed mean is retained.
   - Schedule (write-only plist, not loaded): `launchd/com.zohar.trainer2875-weekly.plist`.
     Load: `cp launchd/com.zohar.trainer2875-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`
   - Verify: `python -m pytest -q tests/test_weekly_progress.py`
