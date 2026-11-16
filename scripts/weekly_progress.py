@@ -23,6 +23,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,9 +52,9 @@ def _now() -> str:
 
 def infer_focus(folder_name: str) -> str | None:
     name = folder_name.lower()
-    if "75" in name or "tele" in name or "compression" in name:
+    if re.search(r"(?<![a-z0-9])75mm(?![a-z0-9])", name) or "tele" in name or "compression" in name:
         return "tele"
-    if "28" in name or "wide" in name:
+    if re.search(r"(?<![a-z0-9])28mm(?![a-z0-9])", name) or "wide" in name:
         return "wide"
     return None
 

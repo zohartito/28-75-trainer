@@ -80,3 +80,18 @@ def test_no_observations_has_no_mean_or_delta(tmp_path):
     observed = weekly_progress.build_summary(scored, 0, tmp_path, ledger, False)
     assert observed["run_mean_score"] == 50
     assert observed["delta"] == 2
+
+
+def test_dates_do_not_select_a_focal_mission(tmp_path):
+    for name in ("2026-11-14_walk", "2026-11-28_walk", "2028-01-01_walk", "frame_175_walk"):
+        assert weekly_progress.infer_focus(name) is None
+    for name, focus in (("2026-W32_28mm-walk", "wide"), ("walk-75mm", "tele"), ("wide", "wide"), ("tele", "tele"), ("compression", "tele")):
+        assert weekly_progress.infer_focus(name) == focus
+    entries = []
+    for name in ("2026-11-14_walk", "2026-11-28_walk"):
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / "frame_28mm.jpg").write_bytes(b"same photo")
+        entries.append(weekly_progress.score_shoot(folder))
+    assert entries[0]["mission_id"] == entries[1]["mission_id"]
+    assert entries[0]["total_score"] == entries[1]["total_score"]
