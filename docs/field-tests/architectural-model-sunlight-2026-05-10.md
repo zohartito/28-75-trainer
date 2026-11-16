@@ -174,44 +174,9 @@ python3 scripts/prepare_field_test_review.py \
 
 If `python3` is not available, try `python`.
 
-### Windows Dev Path
+### Platform requirement
 
-If you run the same test from the Windows workspace, use this project folder:
-
-```powershell
-cd C:\Users\zohar_4ta16fp\Documents\Playground\28-75-trainer
-```
-
-Create a safe place for the shoot:
-
-```powershell
-New-Item -ItemType Directory -Force field-shoots\2026-05-10-arch-model-sunlight\originals
-```
-
-Copy your camera files into:
-
-```text
-C:\Users\zohar_4ta16fp\Documents\Playground\28-75-trainer\field-shoots\2026-05-10-arch-model-sunlight\originals
-```
-
-Then make trainer-friendly review copies:
-
-```powershell
-python scripts/prepare_field_test_review.py `
-  field-shoots\2026-05-10-arch-model-sunlight\originals `
-  field-shoots\2026-05-10-arch-model-sunlight\review-copy
-```
-
-The helper copies files into blocks:
-
-- first 3 images -> `28mm`;
-- next 3 images -> `35mm`;
-- next 3 images -> `50mm`;
-- next 3 images -> `75mm`.
-
-If there are more than 12 images, it repeats that block pattern. That is why the shot order matters.
-
-If the camera files already have JPEG EXIF focal length, the trainer can identify wide/medium/tele without the filename tags. The tags are still useful for this beginner test because they let you visually confirm the intended shot order in Finder, Bridge, and the report.
+Run this workflow on macOS with Python 3.10 or newer. The current safe-I/O backend does not support Windows or Linux; copying the commands into PowerShell does not provide the required filesystem operations.
 
 ## Run 28-75 Trainer
 

@@ -6,7 +6,7 @@
 
 1. Get a mission:
 
-   ```powershell
+   ```bash
    python -m trainer2875 mission --out reports/mission.md
    ```
 
@@ -14,13 +14,13 @@
 
 3. Review the folder:
 
-   ```powershell
-   python -m trainer2875 review C:\path\to\shoot --out reports/review.html --json-out reports/review.json
+   ```bash
+   python -m trainer2875 review /path/to/shoot --out reports/review.html --json-out reports/review.json
    ```
 
 4. Regenerate a report from JSON if needed:
 
-   ```powershell
+   ```bash
    python -m trainer2875 report reports/review.json --out reports/review-copy.html
    ```
 
@@ -56,9 +56,9 @@ Generated JSON reports include a schema version and are validated before HTML is
 
 ## Build, Test, Run
 
-Requires Python 3.10 or newer and no third-party packages. Clone the repository and run these commands from its root folder:
+Requires **macOS** and Python 3.10 or newer; runtime uses no third-party packages. The filesystem safeguards require POSIX descriptor-relative, no-follow operations and macOS system-path aliases. Windows and Linux are not supported by this version. Clone the repository and run these commands from its root folder:
 
-```powershell
+```bash
 python -m unittest discover -s tests
 python -m trainer2875 mission
 python scripts/create_sample_shoot.py reports/sample-shoot

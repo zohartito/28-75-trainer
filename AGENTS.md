@@ -4,6 +4,7 @@
 28-75 Trainer is a local deliberate-practice tool for photographers using a 28-75mm zoom. It gives a mission, reviews a folder of images without modifying originals, writes coaching reports, and recom
 
 ## How to verify a change
+- Supported platform: macOS with Python 3.10+; Windows/Linux safe I/O is unsupported.
 - Tests: `pytest -q`
 - Lint:  `(none detected)`
 - Simulator: `python scripts/run_simulator.py <empty-folder>`; nonempty destinations
