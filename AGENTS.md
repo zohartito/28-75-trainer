@@ -21,7 +21,8 @@ python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "python -m py
   practice root for shoot folders, scores each NEW/CHANGED shoot with
   `trainer2875.scoring`, appends `state/progress-log.jsonl` + `state/PROGRESS.md`,
   and prints a run summary (JSON, `scripts/weekly-progress.schema.json`). Idempotent
-  via a per-shoot SHA-256 signature ledger; hard cap `--max-shoots` (default 20);
+  via a per-shoot SHA-256 signature ledger over image and XMP path/size/mtime;
+  hard cap `--max-shoots` (default 20);
   `--dry-run` writes nothing. Practice root = `$TRAINER2875_PRACTICE_ROOT` or
   `~/Pictures/28-75-practice`. Durable learnings append to `.claude/LEARNINGS.md`.
   - Schedule (write-only plist, not loaded): `launchd/com.zohar.trainer2875-weekly.plist`.

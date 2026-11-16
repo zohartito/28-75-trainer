@@ -71,10 +71,10 @@ def find_shoot_folders(root: Path) -> list[Path]:
 
 
 def shoot_signature(folder: Path) -> str:
-    """Content signature over image files (path, size, mtime) — cheap change detector."""
+    """Signature over images and XMP sidecars (path, size, mtime)."""
     parts: list[str] = []
     for f in sorted(folder.rglob("*")):
-        if f.is_file() and f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
+        if f.is_file() and f.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS | {".xmp"}:
             stat = f.stat()
             parts.append(f"{f.relative_to(folder)}|{stat.st_size}|{stat.st_mtime_ns}")
     digest = hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
