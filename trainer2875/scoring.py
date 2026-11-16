@@ -64,6 +64,8 @@ def covered_focal_targets(analysis: FolderAnalysis, mission: Mission) -> set[int
 def exact_duplicate_groups(analysis: FolderAnalysis) -> list[list[str]]:
     groups: defaultdict[str, list[str]] = defaultdict(list)
     for photo in analysis.photos:
+        if photo.sha256 == "unavailable":
+            continue
         groups[photo.sha256].append(photo.relative_path)
     return [sorted(paths) for paths in groups.values() if len(paths) > 1]
 
