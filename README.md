@@ -30,7 +30,7 @@
 |---|---|---|
 | Shot volume | Supported image count | Confirms enough repetitions for practice |
 | Focal-length coverage | JPEG EXIF focal length, or filename tags such as `28mm` or `75mm` | Checks whether the whole 28-75mm range was practiced |
-| Orientation variety | Image dimensions | Encourages landscape/portrait variation |
+| Orientation variety | Display dimensions (JPEG EXIF Orientation applied) | Encourages landscape/portrait variation |
 | Exact duplicates | SHA-256 file hash | Flags selection discipline issues |
 | Metadata completeness | Dimension and focal-length parse rate | Shows where stronger EXIF tooling should land next |
 
