@@ -70,7 +70,7 @@ python scripts/run_simulator.py reports/simulator
 
 The full test suite uses pytest, including the weekly-progress tests that stdlib unittest discovery does not collect. Use `python -m pytest` from the repository root so the source checkout is importable.
 
-The simulator creates synthetic shoot folders for balanced practice, missing metadata, exact duplicates, unsupported-only folders, RAW metadata sidecars, corrupt images, and nested uppercase filenames. It fails if the expected safety or scoring behavior regresses.
+The simulator creates synthetic shoot folders for balanced practice, missing metadata, exact duplicates, unsupported-only folders, RAW metadata sidecars, corrupt images, and nested uppercase filenames. It checks selected scoring and metadata outcomes. Filesystem safety boundaries are covered separately by `tests/test_safeio_hardening.py` and `tests/test_reporting_hardening.py`; the simulator does not verify source hashes or output-boundary invariants.
 
 ## Real Field Test
 
