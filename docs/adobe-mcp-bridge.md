@@ -1,6 +1,6 @@
 # Adobe MCP Dry-Run Bridge
 
-The Adobe MCP bridge is a validation layer between 28-75 Trainer planning and any future Lightroom or Adobe execution. It does not call Lightroom, Adobe MCP, filesystem catalog tools, or export services. It only reads a handoff dictionary and reports whether the plan is safe to pass to an execution layer.
+The Adobe MCP bridge is a validation layer between 28-75 Trainer planning and any future Lightroom or Adobe execution. It does not call Lightroom, Adobe MCP, filesystem catalog tools, or export services. It reads a handoff dictionary and checks the limited field-presence, container, status, and setting-key rules listed below. It does not establish execution readiness.
 
 ## Boundary
 
@@ -61,4 +61,4 @@ if not dry_run["ok"]:
     raise RuntimeError(dry_run["errors"])
 ```
 
-The dry run does not mutate the handoff input. A passing dry run only means the plan is structurally safe for Adobe MCP to resolve and execute later; it is not proof that Lightroom edits, exports, or a run ledger exist.
+The dry run does not mutate the handoff input. A passing dry run means only that the listed checks found no errors. It does not validate supported schema versions, the contents of `execution_boundary`, or develop-setting value types and ranges. For example, an unknown schema version, a null execution boundary, or a dictionary-valued `Exposure2012` can pass. An execution layer must validate its own complete contract before using a plan. A pass is not proof that Lightroom edits, exports, or a run ledger exist.
