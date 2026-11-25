@@ -161,6 +161,12 @@ def validate_field_review_output_locations(
     review_path: Path,
     *outputs: str | Path,
 ) -> None:
+    for output in outputs:
+        output_path = Path(output)
+        if output_path.resolve() == review_path.resolve() or (
+            output_path.exists() and output_path.samefile(review_path)
+        ):
+            raise ValueError("Refusing to overwrite the input field-review JSON.")
     for folder in field_review_source_folders(review, review_path):
         validate_review_output_locations(folder, *outputs)
 

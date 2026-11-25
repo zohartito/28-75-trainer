@@ -14,6 +14,23 @@ from trainer2875.safeio import OutputTarget, ReviewRoot, copy_bounded, hash_boun
 
 
 class DescriptorBoundaryTests(unittest.TestCase):
+    def test_append_retains_parent_and_preserves_existing_content(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            parent = root / "state"
+            parent.mkdir()
+            external = root / "external"
+            external.mkdir()
+            (external / "log.md").write_text("untouched", encoding="utf-8")
+            with OutputTarget(parent / "log.md") as target:
+                moved = root / "retained"
+                parent.rename(moved)
+                parent.symlink_to(external, target_is_directory=True)
+                target.append_text("first\n", initial="header\n")
+                target.append_text("second\n", initial="header\n")
+            self.assertEqual((moved / "log.md").read_text(), "header\nfirst\nsecond\n")
+            self.assertEqual((external / "log.md").read_text(), "untouched")
+
     def test_output_parent_swap_cannot_redirect_retained_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

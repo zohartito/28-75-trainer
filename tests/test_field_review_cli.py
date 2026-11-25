@@ -9,6 +9,29 @@ from pathlib import Path
 
 
 class FieldReviewCliTests(unittest.TestCase):
+    def test_cli_rejects_input_output_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            review_path = work / "review.json"
+            original = json.dumps({"items": []})
+            for kind in ("same", "lexical", "hardlink", "symlink"):
+                with self.subTest(kind=kind):
+                    review_path.write_text(original, encoding="utf-8")
+                    output = review_path
+                    if kind == "lexical":
+                        (work / "nested").mkdir()
+                        output = work / "nested" / ".." / "review.json"
+                    elif kind == "hardlink":
+                        output = work / "hardlink.json"
+                        output.hardlink_to(review_path)
+                    elif kind == "symlink":
+                        output = work / "symlink.json"
+                        output.symlink_to(review_path)
+                    result = run_cli("field-review", str(review_path), "--adobe-mcp-out", str(output))
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertEqual(review_path.read_text(encoding="utf-8"), original)
+                    self.assertEqual(output.read_text(encoding="utf-8"), original)
+
     def test_cli_writes_planned_adobe_mcp_handoff_for_extra_photo_review(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)

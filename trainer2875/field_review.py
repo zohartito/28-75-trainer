@@ -216,7 +216,7 @@ def build_adobe_mcp_handoff(
     stale_recommended_sets: list[list[int]] | None = None,
 ) -> dict[str, Any]:
     items = list(review.get("items", []))
-    selected = set(recommended_shots or recommended_set(items))
+    selected = set(recommended_set(items) if recommended_shots is None else recommended_shots)
     photos = [handoff_photo(slug, item, shot_number(item) in selected) for item in items]
     recommended_photos = [photo for photo in photos if photo["recommended"]]
     return {

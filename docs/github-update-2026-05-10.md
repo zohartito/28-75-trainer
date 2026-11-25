@@ -12,7 +12,7 @@ The broad parent workspace should still not be pushed directly:
 
 - Current branch: `codex/28-75-trainer-v0-1`
 - Git remote: none configured
-- Git root: `C:\Users\zohar_4ta16fp\Documents\Playground`
+- Git root: `C:\Users\sample_user\Documents\Playground`
 - Product path: `28-75-trainer/`
 - Risk: the Git root contains many unrelated untracked workspace files, so pushing the parent repository as-is would be unsafe.
 

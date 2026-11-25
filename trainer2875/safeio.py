@@ -311,6 +311,23 @@ class OutputTarget:
     def write_bytes(self, content: bytes) -> Path:
         return self._write(content)
 
+    def append_text(self, content: str, *, initial: str = "") -> Path:
+        """Append to a regular no-follow leaf through the retained parent."""
+        fd = os.open(
+            self.name, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
+            0o600, dir_fd=self.parent_fd,
+        )
+        with os.fdopen(fd, "ab") as handle:
+            file_stat = os.fstat(handle.fileno())
+            if not stat.S_ISREG(file_stat.st_mode):
+                raise ValueError(f"Refusing non-regular output: {self.path}")
+            if file_stat.st_size == 0:
+                handle.write(initial.encode("utf-8"))
+            handle.write(content.encode("utf-8"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        return self.path
+
     def _write(self, content: bytes) -> Path:
         temporary_name = f".{self.name}.{secrets.token_hex(16)}.tmp"
         temporary_fd: int | None = None

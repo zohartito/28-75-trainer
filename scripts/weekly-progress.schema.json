@@ -21,9 +21,9 @@
     "dry_run": { "type": "boolean" },
     "new_count": { "type": "integer", "minimum": 0 },
     "skipped_count": { "type": "integer", "minimum": 0 },
-    "run_mean_score": { "type": "integer" },
-    "prev_run_mean_score": { "type": "integer" },
-    "delta": { "type": "integer" },
+    "run_mean_score": { "type": ["integer", "null"] },
+    "prev_run_mean_score": { "type": ["integer", "null"] },
+    "delta": { "type": ["integer", "null"] },
     "run_weakest_component": { "type": "string" },
     "note": { "type": "string" },
     "scored": {

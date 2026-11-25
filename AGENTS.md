@@ -4,13 +4,17 @@
 28-75 Trainer is a local deliberate-practice tool for photographers using a 28-75mm zoom. It gives a mission, reviews a folder of images without modifying originals, writes coaching reports, and recom
 
 ## How to verify a change
-- Tests: `pytest -q`
+- Supported platform: macOS with Python 3.10+; Windows/Linux safe I/O is unsupported.
+- Tests: install `requirements-test.txt`, then run `python -m pytest -q` from the repo root.
 - Lint:  `(none detected)`
+- Optional wheel build: follow `docs/build.md` with the hashed `requirements-build.txt` tooling lock.
+- Simulator: `python scripts/run_simulator.py <empty-folder>`; nonempty destinations
+  are refused unless `--keep` explicitly reuses generated files without deleting the folder.
 
 ## Self-improving loop (close the loop)
 Run an agent until it verifies its own output, then commit:
 ```
-python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "pytest -q" --cwd . --max-iters 5 --commit
+python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "python -m pytest -q" --cwd . --max-iters 5 --commit
 ```
 
 ## Loops (this repo)
@@ -18,12 +22,20 @@ python3 ~/.agent-kit/verify_loop.py --task "<what to do>" --verify "pytest -q" -
   practice root for shoot folders, scores each NEW/CHANGED shoot with
   `trainer2875.scoring`, appends `state/progress-log.jsonl` + `state/PROGRESS.md`,
   and prints a run summary (JSON, `scripts/weekly-progress.schema.json`). Idempotent
-  via a per-shoot SHA-256 signature ledger; hard cap `--max-shoots` (default 20);
+  via a per-shoot SHA-256 signature ledger over image and XMP path/size/mtime;
+  hard cap `--max-shoots` (default 20);
   `--dry-run` writes nothing. Practice root = `$TRAINER2875_PRACTICE_ROOT` or
   `~/Pictures/28-75-practice`. Durable learnings append to `.claude/LEARNINGS.md`.
-  - Schedule (write-only plist, not loaded): `launchd/com.zohar.trainer2875-weekly.plist`.
-    Load: `cp launchd/com.zohar.trainer2875-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`
-  - Verify: `pytest -q tests/test_weekly_progress.py`
+  With no new observations, run mean and delta are JSON null; the previous observed mean is retained.
+  Focus hints use explicit `28mm`/`75mm` tokens or wide/tele/compression names, not date digits.
+  Weekly state/log writes use no-follow descriptors; imported names are escaped in Markdown.
+  - Schedule template: `launchd/com.zohar.trainer2875-weekly.plist.in` (do not load directly).
+    Generate: `python scripts/generate_weekly_plist.py ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`.
+    Uses this clone and the running interpreter; override with `--repo /path/to/clone --python /path/to/python`.
+    Creates the clone's `state/` log directory; does not load a job. After reviewing paths, load manually:
+    `launchctl load ~/Library/LaunchAgents/com.zohar.trainer2875-weekly.plist`.
+    Set `TRAINER2875_PRACTICE_ROOT` in the job environment if not using the default practice root.
+  - Verify: `python -m pytest -q tests/test_weekly_progress.py`
 
 ## Layout
 `.github/`, `docs/`, `launchd/`, `scripts/`, `state/` (runtime, gitignored), `tests/`, `trainer2875/`

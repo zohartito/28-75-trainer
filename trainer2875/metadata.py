@@ -98,6 +98,8 @@ def read_metadata(path: Path, *, handle: BinaryIO | None = None, review_root: Pa
         width, height = jpeg.width, jpeg.height
         warnings = jpeg.warnings
         focal_length = tiff_focal_length(jpeg.exif_payload) if jpeg.exif_payload is not None else None
+        if jpeg.exif_payload is not None and tiff_orientation(jpeg.exif_payload) in {5, 6, 7, 8}:
+            width, height = height, width
     else:
         width, height = image_dimensions(path, handle=handle)
     dimensions_source = "unavailable"
@@ -500,6 +502,18 @@ def valid_sos_payload(payload: bytes) -> bool:
         return False
     component_count = payload[0]
     return 1 <= component_count <= 4 and len(payload) == 4 + 2 * component_count
+
+
+def tiff_orientation(payload: bytes) -> int | None:
+    unpack_short, unpack_long = tiff_unpackers(payload)
+    if unpack_short is None or unpack_long is None or unpack_short(2) != 42:
+        return None
+    entry = read_tiff_ifd(payload, unpack_long(4), unpack_short, unpack_long).get(0x0112)
+    if entry is None or entry[:2] != (3, 1):
+        return None
+    # A single SHORT is stored inline, in the first two bytes of the value field.
+    value = entry[2] & 0xFFFF if payload[:2] == b"II" else entry[2] >> 16
+    return value if 1 <= value <= 8 else None
 
 
 def tiff_focal_length(payload: bytes) -> int | None:

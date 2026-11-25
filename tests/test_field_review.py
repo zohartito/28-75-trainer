@@ -7,6 +7,14 @@ from trainer2875.field_review import ALLOWED_DEVELOP_KEYS, build_adobe_mcp_hando
 
 
 class FieldReviewTests(unittest.TestCase):
+    def test_explicit_empty_handoff_selection_is_preserved(self) -> None:
+        review = {"items": [candidate(1, "wide"), candidate(2, "tight")]}
+        self.assertTrue(build_adobe_mcp_handoff(review, slug="test")["selection"]["recommended_set"])
+        handoff = build_adobe_mcp_handoff(review, slug="test", recommended_shots=[])
+        self.assertEqual(handoff["selection"]["recommended_set"], [])
+        self.assertEqual(handoff["shoot"]["recommended_count"], 0)
+        self.assertTrue(all(not photo["recommended"] for photo in handoff["photos"]))
+
     def test_recommended_set_spreads_role_picks_across_the_full_shoot(self) -> None:
         reviewed = []
         for role, shots in {

@@ -14,7 +14,7 @@ def build_contact_sheet_html(
     recommended_shots: list[int] | set[int] | tuple[int, ...] | None = None,
     title: str = "28-75 Contact Sheet",
 ) -> str:
-    selected = set(recommended_shots or _recommended_shots_from_items(reviewed))
+    selected = set(_recommended_shots_from_items(reviewed) if recommended_shots is None else recommended_shots)
     sanity = visual_selection_sanity(reviewed, recommended_shots=selected)
     rows = "\n".join(_contact_sheet_row(item, _shot_number(item) in selected) for item in sorted(reviewed, key=_shot_number))
     flags = ", ".join(sanity["flags"]) if sanity["flags"] else "none"
@@ -76,7 +76,7 @@ def visual_selection_sanity(
     min_selected_count_for_cluster: int = 3,
     min_shot_span_ratio: float = 0.25,
 ) -> dict[str, Any]:
-    selected = set(recommended_shots or _recommended_shots_from_items(reviewed))
+    selected = set(_recommended_shots_from_items(reviewed) if recommended_shots is None else recommended_shots)
     selected_items = [item for item in reviewed if _shot_number(item) in selected]
     all_shots = [_shot_number(item) for item in reviewed if _shot_number(item) > 0]
     selected_shots = sorted(_shot_number(item) for item in selected_items if _shot_number(item) > 0)
